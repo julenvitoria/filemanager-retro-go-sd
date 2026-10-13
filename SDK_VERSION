@@ -1,0 +1,4 @@
+# Snapshot metadata for this SDK tree (informational).
+FIRMWARE_ABI_VERSION=2
+SOURCE=github.com/julenvitoria/game-and-watch-retro-go-sd branch external_cores @ b791f15
+SYNC_DATE=2026-10-13T14:38:04Z
