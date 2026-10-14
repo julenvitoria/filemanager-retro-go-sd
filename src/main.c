@@ -38,7 +38,7 @@
 #define S(en, es) { { "en", en }, { "es", es }, GW_I18N_END }
 static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_TITLE]          = S("File Manager", "Explorador"),
-    [T_HELP]           = S("A:Open B:Back TIME:Select GAME:Menu", "A:Abre B:Atras TIME:Selecciona GAME:Menu"),
+    [T_HELP]           = S("A:Open B:Back TIME:Select GAME:Menu", "A:Abrir B:Atras TIME:Seleccion GAME:Menu"),
     [T_EMPTY]          = S("(empty folder)", "(carpeta vacia)"),
     [T_OPEN]           = S("Open", "Abrir"),
     [T_COPY]           = S("Copy", "Copiar"),
