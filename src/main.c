@@ -49,7 +49,7 @@ static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_NEWDIR]         = S("New folder", "Nueva carpeta"),
     [T_INFO]           = S("Information", "Información"),
     [T_VIEW_TEXT]      = S("View as text", "Ver como texto"),
-    [T_VIEW_HEX]       = S("View in hex", "Ver en hexadecimal"),
+    [T_VIEW_HEX]       = S("View / edit in hex", "Ver / editar en hexadecimal"),
     [T_SDINFO]         = S("SD card", "Tarjeta SD"),
     [T_EXIT]           = S("Exit", "Salir"),
     [T_MARK_ALL]       = S("Select all", "Seleccionar todo"),
@@ -93,6 +93,15 @@ static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_CANCELLED]      = S("Cancelled", "Cancelado"),
     [T_CLEAR_CLIP]     = S("Clear clipboard", "Vaciar portapapeles"),
     [T_PATH]           = S("Path", "Ruta"),
+    [T_HEX_HELP]       = S("A:Edit Up/Dn:Scroll L/R:Page B:Back", "A:Editar Arr/Abj:Mover I/D:Pag B:Salir"),
+    [T_EDIT_HELP]      = S("A:Change GAME:Save B:Exit", "A:Cambiar GAME:Guardar B:Salir"),
+    [T_BYTE_HELP]      = S("Up/Dn:Value L/R:Digit A:OK B:Undo", "Arr/Abj:Valor I/D:Cifra A:OK B:Anular"),
+    [T_SAVE_CHANGES]   = S("Save changes to the file?", "¿Guardar los cambios en el archivo?"),
+    [T_SAVE]           = S("Save", "Guardar"),
+    [T_DISCARD]        = S("Discard", "Descartar"),
+    [T_SAVED]          = S("Saved", "Guardado"),
+    [T_TOO_MANY]       = S("Too many changes: save first", "Demasiados cambios: guarda primero"),
+    [T_CHANGES]        = S("Bytes changed", "Bytes cambiados"),
 };
 
 #ifdef FM_TEST_ES      /* emulator tests: Spanish UI regardless of the firmware setting */
@@ -205,6 +214,22 @@ int ui_message(const char *title, const char *l1, const char *l2, const char *l3
     dialog_prepare();
     int r = odroid_overlay_dialog(title, ch, yes_no ? first + 1 : first, &repaint_current, 0);
     return r == 1;
+}
+
+int ui_choice(const char *title, const char *l1, const char *b1, const char *b2, const char *b3)
+{
+    odroid_dialog_choice_t ch[8];
+    int n = 0;
+    if (l1) ch[n++] = (odroid_dialog_choice_t){ 0, l1, "", -1, NULL };
+    ch[n++] = (odroid_dialog_choice_t)ODROID_DIALOG_CHOICE_SEPARATOR;
+    int first = n;
+    if (b1) ch[n++] = (odroid_dialog_choice_t){ 1, b1, "", 1, NULL };
+    if (b2) ch[n++] = (odroid_dialog_choice_t){ 2, b2, "", 1, NULL };
+    if (b3) ch[n++] = (odroid_dialog_choice_t){ 3, b3, "", 1, NULL };
+    ch[n++] = (odroid_dialog_choice_t)ODROID_DIALOG_CHOICE_LAST;
+    dialog_prepare();
+    int r = odroid_overlay_dialog(title, ch, first, &repaint_current, 0);
+    return (r >= 1 && r <= 3) ? r : 0;
 }
 
 /* ================================================================ input */

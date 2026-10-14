@@ -34,6 +34,8 @@ enum {
     T_DATE, T_TYPE, T_FOLDER, T_FILE, T_CONTAINS, T_FREE, T_TOTAL, T_USED, T_UNKNOWN,
     T_CLIP_COPY, T_CLIP_CUT, T_OK, T_BAD_NAME, T_DONE, T_FAST_RENAME, T_SLOW_RENAME,
     T_OSK_HELP, T_VIEW_HELP, T_IMG_UNSUPPORTED, T_CANCELLED, T_CLEAR_CLIP, T_PATH,
+    T_HEX_HELP, T_EDIT_HELP, T_BYTE_HELP, T_SAVE_CHANGES, T_SAVE, T_DISCARD, T_SAVED,
+    T_TOO_MANY, T_CHANGES,
     T_COUNT
 };
 
@@ -45,6 +47,8 @@ void ui_text_w(int col, int row, int width, const char *s, uint16_t fg, uint16_t
 void ui_fill(int x, int y, int w, int h, uint16_t c);
 uint16_t *ui_buffer(void);
 int  ui_message(const char *title, const char *l1, const char *l2, const char *l3, bool yes_no);
+/* Up to three buttons; returns 1..3, or 0 if closed with B. Default = first button. */
+int  ui_choice(const char *title, const char *l1, const char *b1, const char *b2, const char *b3);
 
 /* ------------------------------------------------------------------ input (main.c) */
 enum { K_UP = 1, K_DOWN = 2, K_LEFT = 4, K_RIGHT = 8, K_A = 16, K_B = 32, K_GAME = 64, K_TIME = 128,

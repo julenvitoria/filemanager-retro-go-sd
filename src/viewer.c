@@ -107,9 +107,67 @@ void view_text(const char *path)
     }
 }
 
-/* ================================================================ hex */
+/* ================================================================ hex view / edit */
 
 #define HEX_PER_ROW 8
+#define HEX_COL     7                     /* "XXXXXX " offset column */
+#define ASC_COL     (HEX_COL + 3 * HEX_PER_ROW)
+#define MAX_EDITS   2048                  /* pending byte changes before a save is needed */
+
+/* Pending changes (overwrite only: the file never grows or shrinks) */
+static uint32_t g_ed_off[MAX_EDITS];
+static uint8_t  g_ed_val[MAX_EDITS], g_ed_orig[MAX_EDITS];
+static int      g_ed_n;
+
+static int ed_find(uint32_t off)
+{
+    for (int i = 0; i < g_ed_n; i++)
+        if (g_ed_off[i] == off) return i;
+    return -1;
+}
+
+/* false = no room left */
+static bool ed_set(uint32_t off, uint8_t orig, uint8_t val)
+{
+    int i = ed_find(off);
+    if (i >= 0) {
+        if (val == g_ed_orig[i]) {        /* back to the original value: forget it */
+            g_ed_n--;
+            g_ed_off[i] = g_ed_off[g_ed_n]; g_ed_val[i] = g_ed_val[g_ed_n]; g_ed_orig[i] = g_ed_orig[g_ed_n];
+        } else {
+            g_ed_val[i] = val;
+        }
+        return true;
+    }
+    if (val == orig) return true;
+    if (g_ed_n >= MAX_EDITS) return false;
+    g_ed_off[g_ed_n] = off; g_ed_orig[g_ed_n] = orig; g_ed_val[g_ed_n] = val;
+    g_ed_n++;
+    return true;
+}
+
+/* Write the pending changes in place. The read handle is closed and reopened around it. */
+static bool ed_save(const char *path, FILE **f)
+{
+    fclose(*f);
+    *f = NULL;
+    bool ok = false;
+    FILE *w = fopen(path, "r+b");
+    if (w) {
+        ok = true;
+        for (int i = 0; i < g_ed_n && ok; i++) {
+            if (fseek(w, (long)g_ed_off[i], SEEK_SET) != 0 || fwrite(&g_ed_val[i], 1, 1, w) != 1)
+                ok = false;
+            if ((i & 63) == 0) wdog_refresh();
+        }
+        if (fclose(w) != 0) ok = false;
+    }
+    if (ok) g_ed_n = 0;
+    *f = fopen(path, "rb");
+    return ok && *f;
+}
+
+static void hex_digit(char *out, uint8_t v) { static const char H[] = "0123456789ABCDEF"; out[0] = H[v >> 4]; out[1] = H[v & 15]; out[2] = 0; }
 
 void view_hex(const char *path)
 {
@@ -122,45 +180,149 @@ void view_hex(const char *path)
     uint64_t size = st.size;
     uint64_t rows = (size + HEX_PER_ROW - 1) / HEX_PER_ROW;
     uint64_t top = 0;
+    bool editing = false, byte_edit = false;
+    uint64_t cur = 0;                     /* cursor (byte offset) while editing */
+    int nib = 0;                          /* 0 = high digit, 1 = low digit (byte edit) */
+    uint8_t byte_before = 0;              /* value when byte edit started (B restores it) */
+    g_ed_n = 0;
+
     for (;;) {
         uint8_t buf[TEXT_ROWS * HEX_PER_ROW];
-        fseek(f, (long)(top * HEX_PER_ROW), SEEK_SET);
-        size_t got = fread(buf, 1, sizeof buf, f);
+        size_t got = 0;
+        if (f && fseek(f, (long)(top * HEX_PER_ROW), SEEK_SET) == 0)
+            got = fread(buf, 1, sizeof buf, f);
+        uint8_t orig[sizeof buf];
+        memcpy(orig, buf, got);
+        bool changed[sizeof buf];
+        memset(changed, 0, sizeof changed);
+        for (int i = 0; i < g_ed_n; i++) {
+            uint64_t o = g_ed_off[i];
+            if (o >= top * HEX_PER_ROW && o < top * HEX_PER_ROW + got) {
+                buf[o - top * HEX_PER_ROW] = g_ed_val[i];
+                changed[o - top * HEX_PER_ROW] = true;
+            }
+        }
 
         ui_begin();
-        char hdr[64], sz[16];
-        fmt_size(sz, size);
-        ui_text_w(0, 0, FM_COLS - 10, path_base(path), C_BAR_TEXT, C_BAR);
-        ui_text_w(FM_COLS - 10, 0, 10, sz, C_BAR_TEXT, C_BAR);
+        char hdr[48], sz[16];
+        if (editing) {
+            snprintf(hdr, sizeof hdr, "%s%s", g_ed_n ? "*" : "", path_base(path));
+            ui_text_w(0, 0, FM_COLS - 14, hdr, C_BAR_TEXT, C_BAR);
+            snprintf(sz, sizeof sz, "@%06lX", (unsigned long)cur);
+            ui_text_w(FM_COLS - 14, 0, 14, sz, C_BAR_TEXT, C_BAR);
+        } else {
+            fmt_size(sz, size);
+            ui_text_w(0, 0, FM_COLS - 10, path_base(path), C_BAR_TEXT, C_BAR);
+            ui_text_w(FM_COLS - 10, 0, 10, sz, C_BAR_TEXT, C_BAR);
+        }
         for (int r = 0; r < TEXT_ROWS; r++) {
             size_t o = (size_t)r * HEX_PER_ROW;
             if (o >= got) break;
-            char line[FM_COLS + 1];
-            int p = snprintf(line, sizeof line, "%06lX ", (unsigned long)((top + r) * HEX_PER_ROW));
-            for (int b = 0; b < HEX_PER_ROW; b++)
-                p += (o + b < got) ? snprintf(line + p, sizeof line - p, "%02X ", buf[o + b])
-                                   : snprintf(line + p, sizeof line - p, "   ");
+            char t[12];
+            snprintf(t, sizeof t, "%06lX", (unsigned long)((top + r) * HEX_PER_ROW));
+            ui_text(0, 1 + r, t, C_DIM, C_BG);
             for (int b = 0; b < HEX_PER_ROW && o + b < got; b++) {
-                uint8_t ch = buf[o + b];
-                line[p++] = (ch >= 0x20 && ch < 0x7f) ? (char)ch : '.';
+                size_t k = o + b;
+                bool sel = editing && (top * HEX_PER_ROW + k == cur);
+                uint16_t fg = changed[k] ? C_MARK : C_TEXT, bg = C_BG;
+                if (sel) { fg = C_SEL_TEXT; bg = C_SEL_BG; }
+                hex_digit(t, buf[k]);
+                if (sel && byte_edit) {
+                    char d[2] = { t[nib], 0 }, e[2] = { t[!nib], 0 };
+                    ui_text(HEX_COL + 3 * b + nib, 1 + r, d, C_BAR_TEXT, C_WARN);
+                    ui_text(HEX_COL + 3 * b + !nib, 1 + r, e, fg, bg);
+                } else {
+                    ui_text(HEX_COL + 3 * b, 1 + r, t, fg, bg);
+                }
+                char c[2] = { (buf[k] >= 0x20 && buf[k] < 0x7f) ? (char)buf[k] : '.', 0 };
+                ui_text(ASC_COL + b, 1 + r, c, fg, bg);
             }
-            line[p] = '\0';
-            ui_text(0, 1 + r, line, C_TEXT, C_BG);
         }
-        snprintf(hdr, sizeof hdr, "%s", tr(T_VIEW_HELP));
-        ui_text_w(0, FM_ROWS - 1, FM_COLS, hdr, C_BAR_TEXT, C_BAR);
+        ui_text_w(0, FM_ROWS - 1, FM_COLS, tr(byte_edit ? T_BYTE_HELP : editing ? T_EDIT_HELP : T_HEX_HELP),
+                  C_BAR_TEXT, C_BAR);
         ui_end();
 
         uint32_t k = input_wait();
         uint64_t max_top = rows > TEXT_ROWS ? rows - TEXT_ROWS : 0;
+
+        if (byte_edit) {
+            size_t idx = (size_t)(cur - top * HEX_PER_ROW);
+            uint8_t v = buf[idx];
+            int sh = nib ? 0 : 4;
+            if (k & (K_UP | K_DOWN)) {
+                uint8_t d = (v >> sh) & 15;
+                d = (k & K_UP) ? (d + 1) & 15 : (d + 15) & 15;
+                v = (uint8_t)((v & ~(15 << sh)) | (d << sh));
+                if (!ed_set((uint32_t)cur, orig[idx], v))
+                    ui_message(path_base(path), tr(T_TOO_MANY), NULL, NULL, false);
+            }
+            if (k & (K_LEFT | K_RIGHT)) nib = !nib;
+            if (k & (K_A | K_GAME)) byte_edit = false;
+            if (k & K_B) { ed_set((uint32_t)cur, orig[idx], byte_before); byte_edit = false; }
+            continue;
+        }
+
+        if (editing) {
+            if ((k & K_LEFT) && cur > 0) cur--;
+            if ((k & K_RIGHT) && cur + 1 < size) cur++;
+            if ((k & K_UP) && cur >= HEX_PER_ROW) cur -= HEX_PER_ROW;
+            if ((k & K_DOWN) && cur + HEX_PER_ROW < size) cur += HEX_PER_ROW;
+            uint64_t row = cur / HEX_PER_ROW;
+            if (row < top) top = row;
+            if (row >= top + TEXT_ROWS) top = row - TEXT_ROWS + 1;
+            if (top > max_top) top = max_top;
+            if (k & K_A) {
+                if (g_ed_n >= MAX_EDITS && ed_find((uint32_t)cur) < 0) {
+                    ui_message(path_base(path), tr(T_TOO_MANY), NULL, NULL, false);
+                } else {
+                    byte_edit = true;
+                    nib = 0;
+                    byte_before = buf[(size_t)(cur - top * HEX_PER_ROW)];
+                }
+            }
+            if ((k & K_GAME) && g_ed_n) {
+                char l[48];
+                snprintf(l, sizeof l, "%s: %d", tr(T_CHANGES), g_ed_n);
+                if (ui_choice(tr(T_SAVE_CHANGES), l, tr(T_SAVE), tr(T_CANCEL), NULL) == 1) {
+                    if (!ed_save(path, &f))
+                        ui_message(path_base(path), tr(T_ERROR), NULL, NULL, false);
+                    if (!f) return;
+                }
+            }
+            if (k & (K_B | K_PAUSE)) {
+                if (g_ed_n) {
+                    char l[48];
+                    snprintf(l, sizeof l, "%s: %d", tr(T_CHANGES), g_ed_n);
+                    int a = ui_choice(tr(T_SAVE_CHANGES), l, tr(T_SAVE), tr(T_DISCARD), tr(T_CANCEL));
+                    if (a == 1) {
+                        if (!ed_save(path, &f)) {
+                            ui_message(path_base(path), tr(T_ERROR), NULL, NULL, false);
+                            if (!f) return;
+                            continue;                     /* changes kept: stay in the editor */
+                        }
+                    } else if (a == 2) {
+                        g_ed_n = 0;
+                    } else {
+                        continue;
+                    }
+                }
+                editing = false;
+            }
+            continue;
+        }
+
         if ((k & K_UP) && top > 0) top--;
         if (k & K_DOWN) top++;
         if (k & K_LEFT) top = top > TEXT_ROWS ? top - TEXT_ROWS : 0;
         if (k & K_RIGHT) top += TEXT_ROWS;
         if (top > max_top) top = max_top;
+        if ((k & K_A) && size > 0) {
+            editing = true;
+            cur = top * HEX_PER_ROW;
+        }
         if (k & (K_B | K_PAUSE)) break;
     }
-    fclose(f);
+    if (f) fclose(f);
 }
 
 /* ================================================================ BMP */

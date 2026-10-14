@@ -13,7 +13,8 @@ tarjeta SD desde la propia consola.
 - **Selección múltiple**: TIME selecciona o quita la selección, y las acciones se aplican a todo lo seleccionado.
 - **Ver archivos**:
   - de texto (`.txt`, `.cfg`, `.ini`, `.log`…);
-  - en hexadecimal (cualquier archivo);
+  - en hexadecimal (cualquier archivo), **con editor**: cambia bytes sin alterar el tamaño del
+    archivo y guarda solo cuando confirmas;
   - **imágenes BMP**, incluidas las capturas de pantalla del firmware (PAUSE + GAME).
 - **Información** de un archivo o una carpeta: tamaño, fecha, y para carpetas cuántos archivos y
   subcarpetas tiene.
@@ -53,6 +54,19 @@ En el teclado en pantalla:
 
 También tiene teclas de Espacio, Borrar, OK y Cancelar.
 
+En el visor hexadecimal:
+
+| Botón | Visor | Editando | Cambiando un byte |
+|---|---|---|---|
+| Cruceta | Mover / página | Mover el cursor | Arriba/abajo cambia la cifra, izquierda/derecha elige cifra |
+| A | Empezar a editar | Cambiar el byte del cursor | Aceptar |
+| B | Salir | Salir (pregunta si guardar, descartar o seguir) | Deshacer ese byte |
+| GAME | — | Guardar | Aceptar |
+
+Los bytes cambiados salen en azul y el título lleva un `*` hasta que se guardan. El archivo
+no se toca hasta que eliges Guardar, y solo se sobrescriben los bytes cambiados (nunca se
+insertan ni se borran).
+
 ## Firmware
 
 Funciona con cualquier firmware Retro-Go SD 2.x (ABI v2, 908 bytes). Con un firmware que incluya
@@ -86,7 +100,7 @@ programa arranca también en firmwares sin las funciones nuevas).
 - `src/main.c`: lista, menús, portapapeles, acciones, entrada.
 - `src/fsops.c`: rutas y operaciones recursivas (copiar, mover, borrar, contar) con progreso.
 - `src/osk.c`: teclado en pantalla.
-- `src/viewer.c`: visores de texto, hexadecimal y BMP.
+- `src/viewer.c`: visores de texto, hexadecimal (con editor) y BMP.
 
 ## Estado
 
@@ -100,7 +114,8 @@ Probado en el emulador gwemu, con el firmware `external_cores` con el cambio y s
 - crear y borrar carpetas;
 - selección múltiple;
 - pegar en la misma carpeta;
-- información, tarjeta SD y menú de PAUSE.
+- información, tarjeta SD y menú de PAUSE;
+- editor hexadecimal: cambiar, guardar y descartar.
 
 También se ha probado en la consola.
 
