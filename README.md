@@ -102,7 +102,7 @@ Probado en el emulador gwemu, con el firmware `external_cores` con el cambio y s
 - pegar en la misma carpeta;
 - información, tarjeta SD y menú de PAUSE.
 
-Todavía no se ha probado en la consola.
+También se ha probado en la consola.
 
 ## Licencia
 
