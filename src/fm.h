@@ -34,7 +34,7 @@ enum {
     T_DATE, T_TYPE, T_FOLDER, T_FILE, T_CONTAINS, T_FREE, T_TOTAL, T_USED, T_UNKNOWN,
     T_CLIP_COPY, T_CLIP_CUT, T_OK, T_BAD_NAME, T_DONE, T_FAST_RENAME, T_SLOW_RENAME,
     T_OSK_HELP, T_VIEW_HELP, T_IMG_UNSUPPORTED, T_CANCELLED, T_CLEAR_CLIP, T_PATH,
-    T_HEX_HELP, T_EDIT_HELP, T_BYTE_HELP, T_SAVE_CHANGES, T_SAVE, T_DISCARD, T_SAVED,
+    T_HEX_HELP, T_SAVE_CHANGES, T_SAVE, T_DISCARD, T_SAVED,
     T_TOO_MANY, T_CHANGES,
     T_EDIT_TEXT, T_NEWFILE, T_ED_KB_HELP, T_ED_CUR_HELP, T_ED_MENU, T_ED_SAVE_EXIT, T_ED_EXIT_NOSAVE,
     T_ED_EXIT, T_ED_LOSE, T_ED_TOO_BIG, T_ED_FULL, T_TEXT_HELP,
@@ -90,6 +90,17 @@ bool view_text(const char *path);   /* true if edited and saved from the viewer 
 void view_hex(const char *path);
 bool view_bmp(const char *path);    /* false if not a BMP we can show */
 bool is_text_ext(const char *name);
+
+/* ------------------------------------------------------------------ on-screen keyboard (kbd.c) */
+enum { KB_TEXT, KB_HEX, KB_ASCII };
+enum { KC_BKSP = 1, KC_DEL, KC_ENTER, KC_SHIFT, KC_TAB, KC_SPACE, KC_LEFT, KC_RIGHT, KC_UP, KC_DOWN,
+       KC_HOME, KC_END, KC_PGUP, KC_PGDN, KC_SWAP, KC_INC, KC_DEC };
+void kb_set_layout(int layout);
+int  kb_top(void);                  /* y of the keyboard's top edge (text must stay above) */
+void kb_draw(void);
+void kb_nav(uint32_t keys);         /* D-pad moves the key selection */
+int  kb_activate(char *ch);         /* press the selected key: 0 = character in *ch, KC_* code,
+                                       -1 = handled inside (Shift) */
 
 /* ------------------------------------------------------------------ text editor (editor.c) */
 bool edit_text(const char *path);   /* true if the file was saved */

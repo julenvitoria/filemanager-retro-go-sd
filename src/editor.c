@@ -120,77 +120,6 @@ static void move_lines(int d)
     g_cur = pos_at_col(ls, g_want);
 }
 
-/* ---------------------------------------------------------------- keyboard */
-enum { KC_BKSP = 1, KC_DEL, KC_ENTER, KC_SHIFT, KC_TAB, KC_SPACE, KC_LEFT, KC_RIGHT, KC_UP, KC_DOWN,
-       KC_HOME, KC_END, KC_PGUP, KC_PGDN };
-typedef struct { char lo, up; uint8_t code; const char *en, *es; } osk_key_t;
-#define CH(l, u) { l, u, 0, NULL, NULL }
-#define SP(c, en, es) { 0, 0, c, en, es }
-static const osk_key_t R0[] = { CH('1','!'),CH('2','@'),CH('3','#'),CH('4','$'),CH('5','%'),CH('6','^'),CH('7','&'),
-                            CH('8','*'),CH('9','('),CH('0',')'),CH('-','_'),CH('=','+'),SP(KC_BKSP,"Bksp","Borra"),{0} };
-static const osk_key_t R1[] = { CH('q','Q'),CH('w','W'),CH('e','E'),CH('r','R'),CH('t','T'),CH('y','Y'),CH('u','U'),
-                            CH('i','I'),CH('o','O'),CH('p','P'),CH('[','{'),CH(']','}'),SP(KC_DEL,"Del","Supr"),{0} };
-static const osk_key_t R2[] = { CH('a','A'),CH('s','S'),CH('d','D'),CH('f','F'),CH('g','G'),CH('h','H'),CH('j','J'),
-                            CH('k','K'),CH('l','L'),CH(';',':'),CH('\'','"'),CH('\\','|'),SP(KC_ENTER,"Enter","Intro"),{0} };
-static const osk_key_t R3[] = { SP(KC_SHIFT,"Shift","Mayus"),CH('z','Z'),CH('x','X'),CH('c','C'),CH('v','V'),CH('b','B'),
-                            CH('n','N'),CH('m','M'),CH(',','<'),CH('.','>'),CH('/','?'),CH('`','~'),SP(KC_TAB,"Tab","Tab"),{0} };
-static const osk_key_t R4[] = { SP(KC_SPACE,"Space","Espacio"),SP(KC_LEFT,"<","<"),SP(KC_RIGHT,">",">"),SP(KC_UP,"^","^"),
-                            SP(KC_DOWN,"v","v"),SP(KC_HOME,"Home","Ini"),SP(KC_END,"End","Fin"),
-                            SP(KC_PGUP,"PgUp","RePag"),SP(KC_PGDN,"PgDn","AvPag"),{0} };
-static const osk_key_t *const ROWS[5] = { R0, R1, R2, R3, R4 };
-#define KB_ROWS   5
-#define KB_KEY_H  10
-#define KB_Y      (FM_H - 8 - KB_ROWS * KB_KEY_H)
-
-static int kb_row = 1, kb_col = 0;
-static int g_shift;                      /* 0 off, 1 next key, 2 locked */
-
-static int row_len(int r) { int n = 0; while (ROWS[r][n].lo || ROWS[r][n].code) n++; return n; }
-static const char *key_label(const osk_key_t *k, char *buf)
-{
-    if (k->code) {
-        if (k->code == KC_SHIFT && g_shift == 2) return fm_lang_es() ? "MAYUS" : "SHIFT";
-        return fm_lang_es() ? k->es : k->en;
-    }
-    buf[0] = g_shift ? k->up : k->lo;
-    buf[1] = 0;
-    return buf;
-}
-static int key_w(const osk_key_t *k) { char b[2]; return (int)strlen(key_label(k, b)) * 8 + 8; }
-static int row_w(int r) { int w = 0; for (int i = 0; i < row_len(r); i++) w += key_w(&ROWS[r][i]) + 2; return w - 2; }
-static int key_x(int r, int c) { int x = (FM_W - row_w(r)) / 2; for (int i = 0; i < c; i++) x += key_w(&ROWS[r][i]) + 2; return x; }
-
-static void kb_move_row(int d)
-{
-    int cx = key_x(kb_row, kb_col) + key_w(&ROWS[kb_row][kb_col]) / 2;
-    kb_row = (kb_row + d + KB_ROWS) % KB_ROWS;
-    int best = 0, bd = 1 << 30;
-    for (int c = 0; c < row_len(kb_row); c++) {
-        int m = key_x(kb_row, c) + key_w(&ROWS[kb_row][c]) / 2;
-        int dd = m > cx ? m - cx : cx - m;
-        if (dd < bd) { bd = dd; best = c; }
-    }
-    kb_col = best;
-}
-
-static void kb_draw(void)
-{
-    ui_fill(0, KB_Y - 2, FM_W, KB_ROWS * KB_KEY_H + 2, 0x2104);
-    for (int r = 0; r < KB_ROWS; r++)
-        for (int c = 0; c < row_len(r); c++) {
-            const osk_key_t *k = &ROWS[r][c];
-            char b[2];
-            const char *l = key_label(k, b);
-            bool sel = (r == kb_row && c == kb_col);
-            bool lit = (k->code == KC_SHIFT && g_shift);
-            uint16_t bg = sel ? C_SEL_BG : lit ? C_BAR : 0x4208;
-            uint16_t fg = sel ? C_SEL_TEXT : k->code ? C_DIR : C_TEXT;
-            int x = key_x(r, c), w = key_w(k), y = KB_Y + r * KB_KEY_H;
-            ui_fill(x, y, w, KB_KEY_H - 1, bg);
-            ui_text_px(x + 4, y + 1, l, fg, bg);
-        }
-}
-
 /* ---------------------------------------------------------------- drawing */
 static void view_fix(int rows)
 {
@@ -211,7 +140,7 @@ static void view_fix(int rows)
 
 static void draw(const char *path, bool kb)
 {
-    int rows = kb ? (KB_Y - 2 - 8) / 8 : FM_ROWS - 2;
+    int rows = kb ? (kb_top() - 8) / 8 : FM_ROWS - 2;
     view_fix(rows);
 
     ui_begin();
@@ -285,7 +214,7 @@ static bool ed_load(const char *path)
     g_hs = 0;
     g_want = -1;
     g_dirty = false;
-    g_shift = 0;
+    kb_set_layout(KB_TEXT);
     return true;
 }
 
@@ -330,14 +259,12 @@ static void press(int code, char ch, int rows)
     switch (code) {
         case 0:
             ins(ch);
-            if (g_shift == 1) g_shift = 0;
             break;
         case KC_BKSP:  del_back(); break;
         case KC_DEL:   del_fwd(); break;
         case KC_ENTER: ins('\n'); break;
         case KC_TAB:   ins('\t'); break;
         case KC_SPACE: ins(' '); break;
-        case KC_SHIFT: g_shift = (g_shift + 1) % 3; break;
         case KC_LEFT:  g_cur = prev_cp(g_cur); break;
         case KC_RIGHT: g_cur = next_cp(g_cur); break;
         case KC_UP:    move_lines(-1); return;
@@ -360,19 +287,17 @@ bool edit_text(const char *path)
     }
     bool kb = true, saved = false;
     for (;;) {
-        int rows = kb ? (KB_Y - 2 - 8) / 8 : FM_ROWS - 2;
+        int rows = kb ? (kb_top() - 8) / 8 : FM_ROWS - 2;
         draw(path, kb);
         uint32_t k = input_wait();
         if (k & K_B) { del_back(); g_want = -1; }
         if (k & K_TIME) kb = !kb;
         if (kb) {
-            if (k & K_UP)    kb_move_row(-1);
-            if (k & K_DOWN)  kb_move_row(1);
-            if (k & K_LEFT)  kb_col = (kb_col + row_len(kb_row) - 1) % row_len(kb_row);
-            if (k & K_RIGHT) kb_col = (kb_col + 1) % row_len(kb_row);
+            kb_nav(k);
             if (k & K_A) {
-                const osk_key_t *key = &ROWS[kb_row][kb_col];
-                press(key->code, g_shift ? key->up : key->lo, rows);
+                char ch = 0;
+                int code = kb_activate(&ch);
+                if (code >= 0) press(code, ch, rows);
                 if (g_gs == g_ge) ui_message(path_base(path), tr(T_ED_FULL), NULL, NULL, false);
             }
         } else {
