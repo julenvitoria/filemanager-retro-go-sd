@@ -6,7 +6,7 @@
  *
  * Controls (list):
  *   Up/Down  move          Left/Right  page         A  open folder / view file
- *   B        parent folder  TIME       mark / unmark  GAME  actions menu
+ *   B        parent folder  TIME       select / deselect  GAME  actions menu
  *   PAUSE    Retro-Go menu (brightness, volume, quit, power off)
  *
  * Entry (run_gwhb_homebrew):
@@ -38,7 +38,7 @@
 #define S(en, es) { { "en", en }, { "es", es }, GW_I18N_END }
 static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_TITLE]          = S("File Manager", "Explorador"),
-    [T_HELP]           = S("A:Open B:Back TIME:Mark GAME:Menu", "A:Abrir B:Atras TIME:Marca GAME:Menu"),
+    [T_HELP]           = S("A:Open B:Back TIME:Select GAME:Menu", "A:Abre B:Atras TIME:Selecciona GAME:Menu"),
     [T_EMPTY]          = S("(empty folder)", "(carpeta vacia)"),
     [T_OPEN]           = S("Open", "Abrir"),
     [T_COPY]           = S("Copy", "Copiar"),
@@ -52,8 +52,8 @@ static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_VIEW_HEX]       = S("View in hex", "Ver en hexadecimal"),
     [T_SDINFO]         = S("SD card", "Tarjeta SD"),
     [T_EXIT]           = S("Exit", "Salir"),
-    [T_MARK_ALL]       = S("Mark all", "Marcar todo"),
-    [T_UNMARK_ALL]     = S("Unmark all", "Desmarcar todo"),
+    [T_MARK_ALL]       = S("Select all", "Seleccionar todo"),
+    [T_UNMARK_ALL]     = S("Deselect all", "Quitar selección"),
     [T_ACTIONS]        = S("Actions", "Acciones"),
     [T_CONFIRM_DELETE] = S("Delete?", "¿Borrar?"),
     [T_YES]            = S("Yes", "Sí"),

@@ -10,7 +10,7 @@ tarjeta SD desde la propia consola.
 - **Renombrar** con un teclado en pantalla.
 - **Borrar** archivos y carpetas completas, con confirmación (por defecto, "No").
 - **Crear carpetas**.
-- **Selección múltiple**: TIME marca o desmarca, y las acciones se aplican a lo marcado.
+- **Selección múltiple**: TIME selecciona o quita la selección, y las acciones se aplican a todo lo seleccionado.
 - **Ver archivos**:
   - de texto (`.txt`, `.cfg`, `.ini`, `.log`…);
   - en hexadecimal (cualquier archivo);
@@ -37,7 +37,7 @@ Copia `FileManager.bin` a `/homebrews/` en la SD. Aparece en la pestaña Homebre
 | Izquierda / derecha | Página anterior / siguiente |
 | A | Abrir carpeta o ver archivo |
 | B | Volver a la carpeta anterior |
-| TIME | Marcar / desmarcar |
+| TIME | Seleccionar / quitar selección |
 | GAME | Menú de acciones |
 | PAUSE/SET | Menú de Retro-Go (brillo, volumen, salir, apagar) |
 
