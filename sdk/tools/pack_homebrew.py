@@ -41,6 +41,20 @@ GWHB_META_VERSION = 1
 COVER_SIZE_MAX = 10 * 1024  # must match COVER_SIZE in gui.c
 COVER_MAX_WIDTH = 186
 COVER_MAX_HEIGHT = 100
+# gui.c also rejects any JPEG whose MCU-padded (16x16) 4:2:0 output does not
+# fit COVER_420_SIZE (186*100*3/2) or whose RGB565 output does not fit
+# COVER_16BITS_SIZE (186*100*2). A full 186x100 cover pads to 192x112 and is
+# silently dropped, so wide covers are made at most 96 px tall.
+COVER_420_SIZE = COVER_MAX_WIDTH * COVER_MAX_HEIGHT * 3 // 2
+COVER_16BITS_SIZE = COVER_MAX_WIDTH * COVER_MAX_HEIGHT * 2
+COVER_FIT_HEIGHT = 96
+
+
+def cover_fits_buffers(w: int, h: int) -> bool:
+    """Mirror of jpeg_fits_cover_buffers() in gui.c."""
+    pw = (w + 15) & ~15
+    ph = (h + 15) & ~15
+    return pw * ph * 3 // 2 <= COVER_420_SIZE and w * h * 2 <= COVER_16BITS_SIZE
 
 GNW_CORE_MAX_SEGMENTS = 4
 REGION_NAME_TO_ID = {"ram_emu": 0, "itcm": 1, "ram_uc": 2}
@@ -238,7 +252,8 @@ def prepare_cover(path: Path | None) -> bytes:
     data = path.read_bytes()
 
     dims = jpeg_sof_dimensions(data)
-    need_resize = dims is None or dims[0] > COVER_MAX_WIDTH or dims[1] > COVER_MAX_HEIGHT
+    need_resize = (dims is None or dims[0] > COVER_MAX_WIDTH or dims[1] > COVER_MAX_HEIGHT
+                   or not cover_fits_buffers(*dims))
     if need_resize or path.suffix.lower() in {".png", ".bmp", ".gif", ".webp"}:
         try:
             from PIL import Image
@@ -251,7 +266,9 @@ def prepare_cover(path: Path | None) -> bytes:
             )
         else:
             img = Image.open(path).convert("RGB")
-            img.thumbnail((COVER_MAX_WIDTH, COVER_MAX_HEIGHT))
+            img.thumbnail((COVER_MAX_WIDTH, COVER_MAX_HEIGHT), Image.LANCZOS)
+            if not cover_fits_buffers(*img.size):
+                img.thumbnail((COVER_MAX_WIDTH, COVER_FIT_HEIGHT), Image.LANCZOS)
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=85, optimize=True)
             data = buf.getvalue()
@@ -271,6 +288,12 @@ def prepare_cover(path: Path | None) -> bytes:
         sys.exit(
             f"error: cover {path} is {dims[0]}x{dims[1]}, max is "
             f"{COVER_MAX_WIDTH}x{COVER_MAX_HEIGHT} (gui.c COVER_MAX_*)"
+        )
+    if dims and not cover_fits_buffers(*dims):
+        sys.exit(
+            f"error: cover {path} is {dims[0]}x{dims[1]}; padded to 16x16 MCUs it "
+            f"does not fit the launcher's decode buffers (gui.c "
+            f"jpeg_fits_cover_buffers) and would not be shown. Use e.g. 186x96."
         )
     if not (data[:2] == b"\xff\xd8" or path.suffix.lower() in {".jpg", ".jpeg", ".img"}):
         print(
