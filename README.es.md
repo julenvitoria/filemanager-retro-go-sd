@@ -1,0 +1,249 @@
+# File Manager — explorador de archivos para Game & Watch (Retro-Go SD)
+
+[English](README.md) | **Español**
+
+Homebrew GWHB para el firmware Retro-Go SD 2.x (rama `external_cores`) que permite manejar la
+tarjeta SD desde la propia consola: copiar, mover, renombrar, borrar, ver y editar archivos.
+
+## Qué hace
+
+- **Navegar** por toda la SD, con las carpetas primero, en orden alfabético y con los tamaños.
+- **Copiar, cortar (mover) y pegar** archivos y **carpetas completas**, con todo su contenido.
+- **Renombrar**, **borrar** (con confirmación), **crear carpetas** y **crear archivos de texto**.
+- **Selección múltiple**: las acciones se aplican a todo lo seleccionado.
+- **Ver** archivos de texto, en hexadecimal e **imágenes BMP** (también las capturas del firmware).
+- **Editar texto** (`.txt`, `.cfg`, `.ini`…) con un teclado en pantalla.
+- **Editar en hexadecimal** cualquier archivo, con un teclado hexadecimal.
+- **Información** de archivos y carpetas, y de la **tarjeta SD** (capacidad, usado, libre).
+
+Los textos salen en español o en inglés según el idioma del firmware (cualquier otro idioma usa
+el inglés).
+
+## Instalación
+
+Copia `FileManager.bin` a `/homebrews/` en la SD. Aparece en la pestaña **Homebrew** como
+"File Manager".
+
+---
+
+# Manual
+
+## 1. La lista de archivos
+
+La pantalla principal muestra la carpeta actual: arriba la ruta, en medio el contenido (carpetas
+en amarillo y con `/`, archivos con su tamaño), y abajo la posición del cursor, cuántos elementos
+hay seleccionados (`*3`) y lo que hay en el portapapeles (`[2 para copiar]`).
+
+| Botón | Acción |
+|---|---|
+| Arriba / abajo | Moverse por la lista |
+| Izquierda / derecha | Página anterior / siguiente |
+| A | Entrar en la carpeta, o abrir el archivo (ver más abajo qué visor usa) |
+| B | Volver a la carpeta de arriba |
+| TIME | Seleccionar / quitar selección del elemento (y baja al siguiente) |
+| GAME | Menú de acciones |
+| PAUSE/SET | Menú de Retro-Go (brillo, volumen, salir, apagar) |
+
+Al pulsar **A** sobre un archivo:
+- `.bmp` → visor de imágenes;
+- `.txt`, `.cfg`, `.ini`, `.log`, `.json`, `.xml`, `.csv`, `.md`, `.c`, `.h`… → visor de texto;
+- cualquier otro → visor hexadecimal.
+
+## 2. El menú de acciones (GAME)
+
+Las opciones cambian según dónde esté el cursor y si hay algo seleccionado o en el portapapeles:
+
+| Opción | Qué hace |
+|---|---|
+| Abrir | Igual que pulsar A |
+| Ver como texto | Abre el archivo en el visor de texto, sea de la extensión que sea |
+| Editar texto | Abre el editor de texto (apartado 5) |
+| Ver / editar en hexadecimal | Abre el visor hexadecimal (apartado 6) |
+| Copiar / Cortar (mover) | Pone en el portapapeles el elemento del cursor, o todos los seleccionados |
+| Pegar aquí (n) | Copia o mueve aquí lo que hay en el portapapeles |
+| Renombrar | Cambia el nombre con el teclado de nombres (apartado 4) |
+| Borrar | Borra el elemento o los seleccionados, carpetas con todo su contenido. Pide confirmación y por defecto marca "No" |
+| Nueva carpeta | Crea una carpeta en la carpeta actual |
+| Nuevo archivo de texto | Crea un archivo vacío y lo abre en el editor |
+| Información | Tamaño y fecha; en carpetas, cuántos archivos y subcarpetas tiene y cuánto ocupan |
+| Seleccionar todo / Quitar selección | Selecciona o deselecciona todo lo de la carpeta |
+| Vaciar portapapeles | Olvida lo copiado o cortado |
+| Tarjeta SD | Capacidad total, espacio usado y libre (necesita el firmware nuevo, ver "Firmware") |
+| Salir | Vuelve al menú de Retro-Go |
+
+## 3. Copiar, mover y pegar
+
+1. Selecciona lo que quieras con **TIME** (o pon el cursor encima si es una sola cosa).
+2. **GAME → Copiar** o **Cortar**.
+3. Ve a la carpeta de destino y **GAME → Pegar**.
+
+- Sale una barra de progreso, y **B cancela**. Nunca queda un archivo copiado a medias.
+- Si ya existe algo con el mismo nombre, pregunta: **sobrescribir**, **omitir** o **cancelar**.
+- Si pegas una copia en la misma carpeta, crea `nombre (2).ext`.
+- No deja copiar una carpeta dentro de sí misma.
+- Mover es instantáneo con el firmware nuevo. Con el antiguo, copia y luego borra el original.
+
+## 4. El teclado de nombres (renombrar, nueva carpeta, nuevo archivo)
+
+Es un teclado a pantalla completa con el nombre arriba:
+
+| Botón | Acción |
+|---|---|
+| Cruceta | Moverse por las teclas |
+| A | Escribir la tecla |
+| B | Borrar el último carácter |
+| TIME | Cambiar entre minúsculas, mayúsculas y símbolos |
+| GAME | Aceptar |
+| PAUSE | Cancelar |
+
+En la fila de abajo también tiene **Espacio**, **Borrar**, **abc/ABC**, **OK** y **Cancelar**. No
+deja aceptar nombres con caracteres que no admite la tarjeta (`\ / : * ? " < > |`).
+
+## 5. El editor de texto
+
+Se abre con **GAME → Editar texto**, con **A** dentro del visor de texto, o al crear un archivo
+nuevo. Arriba se ve el texto, con el nombre del archivo y la línea:columna del cursor en el título
+(con `*` si hay cambios sin guardar). Abajo hay un teclado completo.
+
+El editor tiene dos modos, que se cambian con **TIME**:
+
+| Botón | Con el teclado | Sin el teclado (modo cursor) |
+|---|---|---|
+| Cruceta | Elegir tecla | Mover el cursor por el texto |
+| A | Pulsar la tecla elegida | Volver a mostrar el teclado |
+| B | Borrar el carácter anterior | Borrar el carácter anterior |
+| TIME | Ocultar el teclado (se ven más líneas) | Mostrar el teclado |
+| GAME | Menú del editor | Menú del editor |
+
+**Teclas especiales:** Borra (retroceso), Supr (borra el carácter del cursor), Intro (nueva
+línea), Tab, Espacio, flechas `< > ^ v`, Ini/Fin (principio/final de línea) y RePag/AvPag.
+**Mayús**: una pulsación pone en mayúsculas solo la siguiente tecla; dos la dejan fija (sale
+`MAYUS`); tres la quitan.
+
+**Menú del editor (GAME):** Guardar, Guardar y salir, o Salir sin guardar (pide confirmación). Si
+no hay cambios, solo ofrece Salir.
+
+Detalles:
+- Las líneas no se cortan: si son más largas que la pantalla, la vista se desplaza hacia el lado.
+- Respeta los finales de línea de Windows (CRLF) y los caracteres con tilde o ñ del archivo. En
+  pantalla salen sin tilde porque la letra pequeña no las tiene, pero se guardan intactos.
+- Al guardar escribe primero una copia temporal y luego sustituye el original, así que un fallo
+  no deja el archivo a medias. Con el firmware antiguo (sin renombrado rápido) escribe
+  directamente sobre el archivo.
+- Tamaño máximo para editar: 160 KB.
+
+## 6. El visor y editor hexadecimal
+
+Muestra cada línea con la posición (en gris), 8 bytes en hexadecimal y los mismos 8 bytes como
+texto a la derecha.
+
+**Viendo:** cruceta arriba/abajo para desplazarse, izquierda/derecha para cambiar de página,
+**A** para editar y **B** para salir.
+
+**Editando:** aparece un cursor naranja. La cifra que se va a escribir sale en rojo. Abajo hay un
+teclado hexadecimal:
+
+```
+ 0 1 2 3 4 5 6 7  -1 +1
+ 8 9 A B C D E F  Borra
+ < > ^ v  RePag AvPag  Texto
+```
+
+| Botón | Con el teclado | Sin el teclado (modo cursor) |
+|---|---|---|
+| Cruceta | Elegir tecla | Mover el cursor (izquierda/derecha de cifra en cifra) |
+| A | Pulsar la tecla elegida | Volver a mostrar el teclado |
+| B | Retroceder una cifra y devolverla a su valor original | Igual |
+| TIME | Ocultar el teclado | Mostrar el teclado |
+| GAME | Menú: Guardar, Guardar y salir, Salir sin guardar | Igual |
+
+- **0-9 y A-F** escriben la cifra donde está el cursor y avanzan solas a la siguiente, como en un
+  editor hexadecimal de PC. Para escribir `FF 00 12` basta con pulsar F, F, 0, 0, 1, 2.
+- **-1 / +1** restan o suman uno al byte del cursor (para ajustar un valor poco a poco).
+- **Texto** pasa el cursor a la columna de texto de la derecha y muestra el teclado completo: cada
+  letra que pulses se escribe como un byte. Allí, la tecla **Hex** vuelve a la columna
+  hexadecimal. Supr devuelve el byte del cursor a su valor original.
+
+Seguridad:
+- Los bytes cambiados salen en azul y el título lleva un `*` hasta que se guardan.
+- El archivo no se toca hasta que eliges Guardar, y solo se sobrescriben los bytes cambiados:
+  nunca se insertan ni se borran, así que el archivo conserva siempre su tamaño.
+- Admite hasta 2048 bytes cambiados antes de guardar.
+
+## 7. El visor de imágenes
+
+Muestra archivos BMP de 8, 16, 24 y 32 bits, reducidos para caber en la pantalla. Sirve para ver
+las capturas que hace el firmware con PAUSE + GAME. Cualquier botón vuelve a la lista.
+
+## 8. Consejos
+
+- Para editar la configuración de un emulador o un `.cfg`, ábrelo con **GAME → Editar texto**.
+- Para tocar una partida guardada, haz antes una copia (Copiar → Pegar en la misma carpeta crea
+  `nombre (2).ext`) y edita el original en hexadecimal.
+- Si un archivo de texto no se abre en el visor de texto por su extensión, usa
+  **GAME → Ver como texto**.
+
+---
+
+## Firmware
+
+Funciona con cualquier firmware Retro-Go SD 2.x (ABI v2, 908 bytes). Con un firmware que incluya
+el commit "firmware ABI: expose rg_storage_rename and rg_storage_free_space" (rama
+`external_cores` de julenvitoria/game-and-watch-retro-go-sd, 8080bb1) hay dos mejoras:
+
+| | Firmware sin ese cambio | Firmware con ese cambio |
+|---|---|---|
+| Renombrar / mover | Copia y borra (lento con archivos grandes) | Instantáneo |
+| Guardar en el editor de texto | Directamente sobre el archivo | Copia temporal + sustitución |
+| Tarjeta SD (capacidad / libre) | No disponible | Sí |
+
+El programa detecta solo qué firmware tiene. Lo hace leyendo esas dos funciones más allá de los
+908 bytes del ABI, solo si el campo `size` del firmware las incluye (`src/fsops.c`).
+
+## Compilar
+
+Con el Arm GNU Toolchain 15.2.rel1 (el mismo que usa retro-go-sd):
+
+    make GCC_PATH=/ruta/a/arm-gnu-toolchain-15.2.rel1-x86_64-arm-none-eabi/bin
+
+O con Docker: `make docker`. Sale `build/FileManager.bin`.
+
+Para probar la interfaz en español en el emulador sin cambiar el idioma del firmware:
+`make CORE_C_DEFS="-DPROJECT_KIND_HOMEBREW=1 -DFM_TEST_ES"`.
+
+`sdk/` es el SDK de cores/homebrews de Retro-Go SD (ABI v2 de 908 bytes, a propósito: así el
+programa arranca también en firmwares sin las funciones nuevas).
+
+## Código
+
+- `src/main.c`: lista, menús, portapapeles, acciones, entrada.
+- `src/fsops.c`: rutas y operaciones recursivas (copiar, mover, borrar, contar) con progreso.
+- `src/osk.c`: teclado de nombres (pantalla completa).
+- `src/kbd.c`: teclado acoplado abajo (texto, hexadecimal y columna de texto del editor hex).
+- `src/editor.c`: editor de texto.
+- `src/viewer.c`: visores de texto, hexadecimal (con editor) y BMP.
+
+## Estado
+
+Probado en el emulador gwemu, con el firmware `external_cores` con el cambio y sin él:
+
+- navegación;
+- visores de texto, hexadecimal y BMP de 16 y 24 bits;
+- copia de carpetas con subcarpetas: resultado idéntico byte a byte;
+- mover (instantáneo y por copia + borrado);
+- renombrar con el teclado;
+- crear y borrar carpetas;
+- selección múltiple;
+- pegar en la misma carpeta;
+- información, tarjeta SD y menú de PAUSE;
+- editor hexadecimal: escribir cifras con el teclado, escribir texto en la columna de texto,
+  guardar y descartar;
+- editor de texto: escribir, borrar, mover, Mayús, guardar (CRLF y UTF-8 intactos), salir sin
+  guardar y crear un archivo nuevo.
+
+En la consola se ha probado la parte de archivos (navegar, copiar, mover, renombrar, borrar…).
+Los editores de texto y hexadecimal, de momento, solo en el emulador.
+
+## Licencia
+
+MIT (ver `LICENSE`). Las cabeceras de `sdk/include/` mantienen sus licencias originales.
