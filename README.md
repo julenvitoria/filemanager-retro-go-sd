@@ -9,7 +9,9 @@ tarjeta SD desde la propia consola.
 - **Copiar, cortar (mover) y pegar** archivos y **carpetas completas**, con todo su contenido.
 - **Renombrar** con un teclado en pantalla.
 - **Borrar** archivos y carpetas completas, con confirmación (por defecto, "No").
-- **Crear carpetas**.
+- **Crear carpetas** y **archivos de texto nuevos**.
+- **Editar texto** (`.txt`, `.cfg`, `.ini`…) con un teclado en pantalla abajo, al estilo de
+  gw-dos-xtulator.
 - **Selección múltiple**: TIME selecciona o quita la selección, y las acciones se aplican a todo lo seleccionado.
 - **Ver archivos**:
   - de texto (`.txt`, `.cfg`, `.ini`, `.log`…);
@@ -53,6 +55,23 @@ En el teclado en pantalla:
 | GAME | Aceptar |
 
 También tiene teclas de Espacio, Borrar, OK y Cancelar.
+
+En el editor de texto (menú de acciones → "Editar texto", o A desde el visor de texto):
+
+| Botón | Con el teclado | Sin el teclado (modo cursor) |
+|---|---|---|
+| Cruceta | Elegir tecla | Mover el cursor por el texto |
+| A | Pulsar la tecla | Mostrar el teclado |
+| B | Borrar el carácter anterior | Borrar el carácter anterior |
+| TIME | Ocultar el teclado (más líneas a la vista) | Mostrar el teclado |
+| GAME | Menú: guardar, guardar y salir, salir sin guardar | Igual |
+
+El teclado tiene Mayús (una pulsación = la siguiente letra; dos = bloqueo), Tab, Intro, Supr,
+flechas, Inicio/Fin y RePág/AvPág. Las líneas no se cortan: la vista se desplaza en horizontal.
+Se conservan los finales de línea de Windows (CRLF) y los caracteres UTF-8 (á, ñ…), aunque la
+letra de 8x8 los muestra sin tilde. Al guardar se escribe un archivo temporal y luego se
+sustituye el original, así que un fallo no deja el archivo a medias (con el firmware sin
+renombrado rápido se escribe directamente). Tamaño máximo para editar: 160 KB.
 
 En el visor hexadecimal:
 
@@ -101,6 +120,7 @@ programa arranca también en firmwares sin las funciones nuevas).
 - `src/fsops.c`: rutas y operaciones recursivas (copiar, mover, borrar, contar) con progreso.
 - `src/osk.c`: teclado en pantalla.
 - `src/viewer.c`: visores de texto, hexadecimal (con editor) y BMP.
+- `src/editor.c`: editor de texto con teclado en pantalla.
 
 ## Estado
 
@@ -115,7 +135,9 @@ Probado en el emulador gwemu, con el firmware `external_cores` con el cambio y s
 - selección múltiple;
 - pegar en la misma carpeta;
 - información, tarjeta SD y menú de PAUSE;
-- editor hexadecimal: cambiar, guardar y descartar.
+- editor hexadecimal: cambiar, guardar y descartar;
+- editor de texto: escribir, borrar, mover, Mayús, guardar (CRLF y UTF-8 intactos), salir sin
+  guardar y crear un archivo nuevo.
 
 También se ha probado en la consola.
 

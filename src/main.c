@@ -102,6 +102,18 @@ static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_SAVED]          = S("Saved", "Guardado"),
     [T_TOO_MANY]       = S("Too many changes: save first", "Demasiados cambios: guarda primero"),
     [T_CHANGES]        = S("Bytes changed", "Bytes cambiados"),
+    [T_EDIT_TEXT]      = S("Edit text", "Editar texto"),
+    [T_NEWFILE]        = S("New text file", "Nuevo archivo de texto"),
+    [T_ED_KB_HELP]     = S("A:Key B:Bksp TIME:Cursor GAME:Menu", "A:Tecla B:Borra TIME:Cursor GAME:Menu"),
+    [T_ED_CUR_HELP]    = S("D-pad:Move A:Keyboard B:Bksp GAME:Menu", "Cruz:Mover A:Teclado B:Borra GAME:Menu"),
+    [T_ED_MENU]        = S("Text editor", "Editor de texto"),
+    [T_ED_SAVE_EXIT]   = S("Save and exit", "Guardar y salir"),
+    [T_ED_EXIT_NOSAVE] = S("Exit without saving", "Salir sin guardar"),
+    [T_ED_EXIT]        = S("Exit", "Salir"),
+    [T_ED_LOSE]        = S("The changes will be lost", "Se perderán los cambios"),
+    [T_ED_TOO_BIG]     = S("Too big to edit. Maximum:", "Demasiado grande para editar. Máximo:"),
+    [T_ED_FULL]        = S("Editor full: save and reopen", "Editor lleno: guarda y vuelve a abrir"),
+    [T_TEXT_HELP]      = S("A:Edit Up/Dn:Scroll L/R:Page B:Back", "A:Editar Arr/Abj:Mover I/D:Pag B:Salir"),
 };
 
 #ifdef FM_TEST_ES      /* emulator tests: Spanish UI regardless of the firmware setting */
@@ -145,6 +157,13 @@ static void ascii_fold(char *out, size_t size, const char *in)
 uint16_t *ui_buffer(void) { return (uint16_t *)lcd_get_active_buffer(); }
 
 void ui_fill(int x, int y, int w, int h, uint16_t c) { odroid_overlay_draw_fill_rect(x, y, w, h, c); }
+
+void ui_text_px(int x, int y, const char *s, uint16_t fg, uint16_t bg)
+{
+    char buf[FM_COLS * 4 + 1];
+    ascii_fold(buf, sizeof buf, s);
+    if (buf[0]) odroid_overlay_draw_text((uint16_t)x, (uint16_t)y, 0, buf, fg, bg);
+}
 
 void ui_begin(void)
 {
@@ -699,14 +718,46 @@ static void open_entry(bool force_text, bool force_hex)
         return;
     }
     if (e->dir) return;
+    char name[256];
+    snprintf(name, sizeof name, "%s", ename(e));
     if (force_hex) view_hex(p);
     else if (force_text) view_text(p);
     else if (is_bmp_ext(p)) { if (!view_bmp(p)) { draw_list(); ui_message(tr(T_ERROR), tr(T_IMG_UNSUPPORTED), NULL, NULL, false); } }
     else if (is_text_ext(p)) view_text(p);
     else view_hex(p);
+    load_dir(name);          /* the file may have been edited: refresh size and date */
 }
 
-enum { A_OPEN = 1, A_TEXT, A_HEX, A_COPY, A_CUT, A_PASTE, A_CLEAR, A_RENAME, A_DELETE, A_NEWDIR,
+static void do_edit(void)
+{
+    if (!g_count || g_ent[g_cursor].dir) return;
+    char p[FM_PATH_MAX], name[256];
+    snprintf(name, sizeof name, "%s", ename(&g_ent[g_cursor]));
+    path_join(p, g_cwd, name);
+    edit_text(p);
+    load_dir(name);
+}
+
+static void do_newfile(void)
+{
+    char name[256];
+    snprintf(name, sizeof name, "%s", fm_lang_es() ? "nuevo.txt" : "new.txt");
+    if (!osk_edit(tr(T_NEWFILE), name, sizeof name)) { draw_list(); return; }
+    char p[FM_PATH_MAX];
+    path_join(p, g_cwd, name);
+    if (fs_exists(p)) {
+        draw_list();
+        ui_message(tr(T_ERROR), tr(T_EXISTS), name, NULL, false);
+        return;
+    }
+    FILE *f = fopen(p, "wb");
+    if (!f) { draw_list(); ui_message(tr(T_ERROR), name, NULL, NULL, false); return; }
+    fclose(f);
+    edit_text(p);
+    load_dir(name);
+}
+
+enum { A_OPEN = 1, A_TEXT, A_EDIT, A_HEX, A_NEWFILE, A_COPY, A_CUT, A_PASTE, A_CLEAR, A_RENAME, A_DELETE, A_NEWDIR,
        A_INFO, A_MARKALL, A_UNMARKALL, A_SD, A_EXIT };
 
 static int actions_menu(void)
@@ -719,6 +770,7 @@ static int actions_menu(void)
     if (have && !g_marked) ch[n++] = (odroid_dialog_choice_t){ A_OPEN, tr(T_OPEN), "", 1, NULL };
     if (file) {
         ch[n++] = (odroid_dialog_choice_t){ A_TEXT, tr(T_VIEW_TEXT), "", 1, NULL };
+        ch[n++] = (odroid_dialog_choice_t){ A_EDIT, tr(T_EDIT_TEXT), "", 1, NULL };
         ch[n++] = (odroid_dialog_choice_t){ A_HEX, tr(T_VIEW_HEX), "", 1, NULL };
     }
     if (have) {
@@ -732,6 +784,7 @@ static int actions_menu(void)
     if (have && !g_marked) ch[n++] = (odroid_dialog_choice_t){ A_RENAME, tr(T_RENAME), "", 1, NULL };
     if (have) ch[n++] = (odroid_dialog_choice_t){ A_DELETE, tr(T_DELETE), "", 1, NULL };
     ch[n++] = (odroid_dialog_choice_t){ A_NEWDIR, tr(T_NEWDIR), "", 1, NULL };
+    ch[n++] = (odroid_dialog_choice_t){ A_NEWFILE, tr(T_NEWFILE), "", 1, NULL };
     if (have && !g_marked) ch[n++] = (odroid_dialog_choice_t){ A_INFO, tr(T_INFO), "", 1, NULL };
     ch[n++] = (odroid_dialog_choice_t)ODROID_DIALOG_CHOICE_SEPARATOR;
     if (have) ch[n++] = (odroid_dialog_choice_t){ A_MARKALL, tr(T_MARK_ALL), "", 1, NULL };
@@ -786,6 +839,8 @@ void app_main(uint8_t load_state, uint8_t start_paused, int8_t save_slot)
                 case A_OPEN:   open_entry(false, false); break;
                 case A_TEXT:   open_entry(true, false); break;
                 case A_HEX:    open_entry(false, true); break;
+                case A_EDIT:   do_edit(); break;
+                case A_NEWFILE: do_newfile(); break;
                 case A_COPY:   clip_set(false); break;
                 case A_CUT:    clip_set(true); break;
                 case A_PASTE:  do_paste(); break;

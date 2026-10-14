@@ -40,12 +40,12 @@ bool is_bmp_ext(const char *name)
 #define MAX_LINES 8192
 static uint32_t g_lines[MAX_LINES];   /* start offset of every wrapped line */
 
-void view_text(const char *path)
+bool view_text(const char *path)
 {
     FILE *f = fopen(path, "rb");
     if (!f) {
         ui_message(path_base(path), tr(T_ERROR), NULL, NULL, false);
-        return;
+        return false;
     }
     size_t len = fread(fm_scratch, 1, FM_SCRATCH_SIZE - 1, f);
     bool truncated = fread(fm_scratch + len, 1, 1, f) == 1;
@@ -60,7 +60,7 @@ void view_text(const char *path)
         g_lines[nlines++] = (uint32_t)i;
         int col = 0;
         while (i < len && t[i] != '\n' && t[i] != '\r' && col < FM_COLS) {
-            col += (t[i] == '\t') ? 4 - (col & 3) : 1;
+            col += (t[i] == '\t') ? 4 - (col & 3) : (((uint8_t)t[i] & 0xC0) == 0x80) ? 0 : 1;
             i++;
         }
         if (i >= len) break;
@@ -79,23 +79,31 @@ void view_text(const char *path)
         snprintf(pos, sizeof pos, "%d/%d", nlines ? top + 1 : 0, nlines);
         ui_text_w(FM_COLS - 12, 0, 12, pos, C_BAR_TEXT, C_BAR);
         for (int r = 0; r < TEXT_ROWS && top + r < nlines; r++) {
-            char line[FM_COLS + 1];
+            char line[FM_COLS * 4 + 1];        /* UTF-8 is passed through: ui_text folds it */
             uint32_t s = g_lines[top + r];
             uint32_t e = (top + r + 1 < nlines) ? g_lines[top + r + 1] : len;
-            int c = 0;
-            for (uint32_t k = s; k < e && c < FM_COLS; k++) {
+            int c = 0, o = 0;
+            for (uint32_t k = s; k < e && c < FM_COLS && o < FM_COLS * 4 - 4; k++) {
                 char ch = t[k];
                 if (ch == '\r' || ch == '\n') break;
-                if (ch == '\t') { do line[c++] = ' '; while ((c & 3) && c < FM_COLS); continue; }
-                line[c++] = ((uint8_t)ch < 0x20 || (uint8_t)ch > 0x7e) ? '.' : ch;
+                if (ch == '\t') { do { line[o++] = ' '; c++; } while ((c & 3) && c < FM_COLS); continue; }
+                if ((uint8_t)ch >= 0x80) {
+                    if (((uint8_t)ch & 0xC0) != 0x80) c++;
+                    line[o++] = ch;
+                    continue;
+                }
+                line[o++] = ((uint8_t)ch < 0x20 || ch == 0x7f) ? '.' : ch;
+                c++;
             }
-            line[c] = '\0';
+            line[o] = '\0';
             ui_text(0, 1 + r, line, C_TEXT, C_BG);
         }
-        ui_text_w(0, FM_ROWS - 1, FM_COLS, tr(T_VIEW_HELP), C_BAR_TEXT, C_BAR);
+        ui_text_w(0, FM_ROWS - 1, FM_COLS, tr(T_TEXT_HELP), C_BAR_TEXT, C_BAR);
         ui_end();
 
         uint32_t k = input_wait();
+        if (k & K_A)        /* edit: the editor reloads the file into the same scratch buffer */
+            return edit_text(path);
         int max_top = nlines > TEXT_ROWS ? nlines - TEXT_ROWS : 0;
         if (k & K_UP)    top--;
         if (k & K_DOWN)  top++;
@@ -103,7 +111,7 @@ void view_text(const char *path)
         if (k & K_RIGHT) top += TEXT_ROWS;
         if (top > max_top) top = max_top;
         if (top < 0) top = 0;
-        if (k & (K_B | K_PAUSE)) return;
+        if (k & (K_B | K_PAUSE)) return false;
     }
 }
 

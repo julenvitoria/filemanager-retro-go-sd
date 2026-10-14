@@ -36,6 +36,8 @@ enum {
     T_OSK_HELP, T_VIEW_HELP, T_IMG_UNSUPPORTED, T_CANCELLED, T_CLEAR_CLIP, T_PATH,
     T_HEX_HELP, T_EDIT_HELP, T_BYTE_HELP, T_SAVE_CHANGES, T_SAVE, T_DISCARD, T_SAVED,
     T_TOO_MANY, T_CHANGES,
+    T_EDIT_TEXT, T_NEWFILE, T_ED_KB_HELP, T_ED_CUR_HELP, T_ED_MENU, T_ED_SAVE_EXIT, T_ED_EXIT_NOSAVE,
+    T_ED_EXIT, T_ED_LOSE, T_ED_TOO_BIG, T_ED_FULL, T_TEXT_HELP,
     T_COUNT
 };
 
@@ -45,6 +47,7 @@ void ui_end(void);                  /* show it */
 void ui_text(int col, int row, const char *s, uint16_t fg, uint16_t bg);
 void ui_text_w(int col, int row, int width, const char *s, uint16_t fg, uint16_t bg); /* padded/clipped */
 void ui_fill(int x, int y, int w, int h, uint16_t c);
+void ui_text_px(int x, int y, const char *s, uint16_t fg, uint16_t bg);   /* pixel position */
 uint16_t *ui_buffer(void);
 int  ui_message(const char *title, const char *l1, const char *l2, const char *l3, bool yes_no);
 /* Up to three buttons; returns 1..3, or 0 if closed with B. Default = first button. */
@@ -83,10 +86,13 @@ bool fs_free_space(uint64_t *free_bytes, uint64_t *total_bytes);
 bool osk_edit(const char *title, char *text, size_t size);   /* false = cancelled */
 
 /* ------------------------------------------------------------------ viewers (viewer.c) */
-void view_text(const char *path);
+bool view_text(const char *path);   /* true if edited and saved from the viewer */
 void view_hex(const char *path);
 bool view_bmp(const char *path);    /* false if not a BMP we can show */
 bool is_text_ext(const char *name);
+
+/* ------------------------------------------------------------------ text editor (editor.c) */
+bool edit_text(const char *path);   /* true if the file was saved */
 bool is_bmp_ext(const char *name);
 
 /* Scratch memory shared by the copy buffer and the viewers (never used at the same time) */

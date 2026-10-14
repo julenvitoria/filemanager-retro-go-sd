@@ -16,7 +16,8 @@ CORE_C_SOURCES := \
 src/main.c \
 src/fsops.c \
 src/osk.c \
-src/viewer.c
+src/viewer.c \
+src/editor.c
 
 CORE_C_INCLUDES := -Isrc
 CORE_C_DEFS := -DPROJECT_KIND_HOMEBREW=1
