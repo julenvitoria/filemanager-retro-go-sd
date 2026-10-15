@@ -187,11 +187,13 @@ las capturas que hace el firmware con PAUSE + GAME. Cualquier botón vuelve a la
 
 ## Firmware
 
-Funciona con cualquier firmware Retro-Go SD 2.x (ABI v2, 908 bytes). Con un firmware que incluya
-el commit "firmware ABI: expose rg_storage_rename and rg_storage_free_space" (rama
-`external_cores` de julenvitoria/game-and-watch-retro-go-sd, 8080bb1) hay dos mejoras:
+Funciona con cualquier firmware Retro-Go SD 2.x (ABI v2, 908 bytes). El firmware oficial incluye
+dos funciones más para él desde el commit
+[d2b3868](https://github.com/sylverb/game-and-watch-retro-go-sd/commit/d2b3868c9c7980a0d48c28465234f12902528fdd)
+("firmware ABI: expose rg_storage_rename and rg_storage_free_space", rama `external_cores`). Con un
+firmware de ese commit en adelante hay estas mejoras:
 
-| | Firmware sin ese cambio | Firmware con ese cambio |
+| | Firmware anterior | Firmware con d2b3868 o posterior |
 |---|---|---|
 | Renombrar / mover | Copia y borra (lento con archivos grandes) | Instantáneo |
 | Guardar en el editor de texto | Directamente sobre el archivo | Copia temporal + sustitución |

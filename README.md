@@ -68,7 +68,7 @@ The options depend on where the cursor is and whether something is selected or i
 | Information | Size and date; for folders, how many files and subfolders it has and their total size |
 | Select all / Deselect all | Selects or deselects everything in the folder |
 | Clear clipboard | Forgets what was copied or cut |
-| SD card | Total capacity, used and free space (needs the newer firmware, see "Firmware") |
+| SD card | Total capacity, used and free space (needs a recent firmware, see "Firmware") |
 | Exit | Back to the Retro-Go menu |
 
 ## 3. Copy, move and paste
@@ -185,11 +185,13 @@ the firmware takes with PAUSE + GAME. Any button goes back to the list.
 
 ## Firmware
 
-Works with any Retro-Go SD 2.x firmware (ABI v2, 908 bytes). With a firmware that includes the
-commit "firmware ABI: expose rg_storage_rename and rg_storage_free_space" (`external_cores`
-branch of julenvitoria/game-and-watch-retro-go-sd, 8080bb1) there are a few improvements:
+Works with any Retro-Go SD 2.x firmware (ABI v2, 908 bytes). The official firmware includes two
+extra functions for it since commit
+[d2b3868](https://github.com/sylverb/game-and-watch-retro-go-sd/commit/d2b3868c9c7980a0d48c28465234f12902528fdd)
+("firmware ABI: expose rg_storage_rename and rg_storage_free_space", `external_cores` branch).
+With a firmware from that commit on there are a few improvements:
 
-| | Firmware without that change | Firmware with that change |
+| | Older firmware | Firmware with d2b3868 or later |
 |---|---|---|
 | Rename / move | Copy and delete (slow with big files) | Instant |
 | Saving in the text editor | Directly over the file | Temporary copy + replace |
