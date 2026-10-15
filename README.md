@@ -11,7 +11,9 @@ from the console itself: copy, move, rename, delete, view and edit files.
 - **Copy, cut (move) and paste** files and **whole folders**, with everything inside.
 - **Rename**, **delete** (with confirmation), **create folders** and **create text files**.
 - **Multi-select**: actions apply to everything selected.
-- **View** text files, hex dumps and **BMP images** (including the firmware's screenshots).
+- **View** text files, hex dumps and **images**: JPEG, PNG, GIF (animated too) and BMP (also the
+  firmware's screenshots).
+- **Play videos**: AVI with Motion-JPEG video and PCM sound (convert yours with one ffmpeg command).
 - **Edit text** (`.txt`, `.cfg`, `.ini`…) with an on-screen keyboard.
 - **Hex-edit** any file, with a hex keypad.
 - **Information** about files and folders, and about the **SD card** (capacity, used, free).
@@ -45,7 +47,8 @@ position, how many items are selected (`*3`) and what is in the clipboard (`[2 t
 | PAUSE/SET | Retro-Go menu (brightness, volume, exit, power off) |
 
 Pressing **A** on a file opens:
-- `.bmp` → image viewer;
+- `.jpg`, `.png`, `.gif`, `.bmp` → image viewer;
+- `.avi` → video player (`.mp4`, `.mkv`, `.mov`… show how to convert them);
 - `.txt`, `.cfg`, `.ini`, `.log`, `.json`, `.xml`, `.csv`, `.md`, `.c`, `.h`… → text viewer;
 - anything else → hex viewer.
 
@@ -170,11 +173,49 @@ Safety:
 
 ## 7. The image viewer
 
-Shows 8, 16, 24 and 32-bit BMP files, scaled down to fit the screen. Handy for the screenshots
-the firmware takes with PAUSE + GAME. Any button goes back to the list.
+Shows **JPEG**, **PNG**, **GIF** and **BMP** pictures of any size, fitted to the screen (small ones
+are enlarged by a whole factor so they stay sharp).
 
-## 8. Tips
+| Button | Action |
+|---|---|
+| Left / right | Previous / next picture in the folder |
+| A, B, GAME, TIME | Back to the list |
 
+- JPEG: baseline (the usual kind, from cameras and phones). Pictures wider than 2560 px are
+  decoded at 1/8 size, which is fast and still more than the screen needs. **Progressive JPEGs are
+  not supported** (a message says so).
+- PNG: every colour type and bit depth, transparency (shown over black) and interlaced files.
+- GIF: animations play with their own timing.
+- BMP: 8, 16, 24 and 32 bits, such as the screenshots the firmware takes with PAUSE + GAME.
+- Big files show "Loading..." for a moment.
+
+## 8. The video player
+
+Plays **AVI files with Motion-JPEG video (at most 320x240) and PCM sound**. Every frame is decoded
+by the console's hardware JPEG decoder, and the picture follows the sound.
+
+| Button | Action |
+|---|---|
+| A | Pause / resume (shows time and a progress bar) |
+| Left / right | Back / forward 10 seconds |
+| Down / up | Back / forward 1 minute |
+| B | Stop |
+| PAUSE/SET | Retro-Go menu (volume, brightness…); the video is silenced meanwhile |
+
+Videos from phones or the internet (MP4, MKV, MOV, WebM… with H.264, H.265, VP9…) can't be
+decoded by the console: opening one shows a message. Convert them on a PC with
+[ffmpeg](https://ffmpeg.org/) (Windows, macOS and Linux):
+
+```
+ffmpeg -i input.mp4 -vf "scale=320:240:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=15" -c:v mjpeg -q:v 5 -pix_fmt yuvj420p -c:a pcm_s16le -ar 22050 -ac 1 output.avi
+```
+
+This makes a 320x240 (or smaller, keeping the shape) video at 15 frames per second with mono
+22 kHz sound. `-q:v` sets the quality (2 = best and biggest, 10 = smallest); `fps=15` can be
+raised if the card reads fast enough. A 4-minute clip takes about 30-40 MB. Audio in other PCM
+rates is converted while playing; compressed audio (MP3, AAC…) plays without sound.
+
+## 9. Tips
 - To edit an emulator's configuration or a `.cfg`, open it with **GAME → Edit text**.
 - Before touching a save file, make a copy (Copy → Paste here in the same folder creates
   `name (2).ext`) and hex-edit the original.
@@ -221,14 +262,23 @@ starts on firmware without the new functions).
 - `src/osk.c`: name keyboard (full screen).
 - `src/kbd.c`: keyboard docked at the bottom (text, hex, and the hex editor's text column).
 - `src/editor.c`: text editor.
-- `src/viewer.c`: text, hex (with editor) and BMP viewers.
+- `src/viewer.c`: text and hex viewers (with the hex editor).
+- `src/image.c`: image viewer (JPEG, PNG, GIF, BMP) with a streaming scaler.
+- `src/video.c`: AVI/MJPEG video player.
+- `src/third_party/`: [picojpeg](https://github.com/richgel999/picojpeg) (public domain) and the
+  inflate part of [miniz](https://github.com/richgel999/miniz) (MIT), for JPEG and PNG.
 
 ## Status
 
 Tested in the gwemu emulator, with the `external_cores` firmware with and without the change:
 
 - browsing;
-- text, hex and 16/24-bit BMP viewers;
+- text and hex viewers;
+- image viewer: big (1/8) and normal JPEG, grayscale JPEG, progressive JPEG message, PNG
+  (small enlarged, RGBA, palette, 16-bit, interlaced), animated GIF, BMP, browsing with
+  left/right;
+- video player: playback with sound, pause, seeking both ways, end of file, a video without
+  sound, stereo 24 kHz sound (resampled), and the messages for MPEG-4, too-big and MP4 files;
 - copying folders with subfolders: byte-identical result;
 - moving (instant, and by copy + delete);
 - renaming with the keyboard;
@@ -242,8 +292,9 @@ Tested in the gwemu emulator, with the `external_cores` firmware with and withou
   saving and creating a new file.
 
 On the console, the file features (browsing, copying, moving, renaming, deleting…) have been
-tested. The text and hex editors, so far, only in the emulator.
+tested. The text and hex editors and the image and video viewers, so far, only in the emulator.
 
 ## License
 
-MIT (see `LICENSE`). The headers in `sdk/include/` keep their original licenses.
+MIT (see `LICENSE`). The headers in `sdk/include/` keep their original licenses; picojpeg is
+public domain and miniz is MIT (`src/third_party/`).

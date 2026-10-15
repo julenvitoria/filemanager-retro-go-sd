@@ -376,7 +376,7 @@ static void draw_osd(const avi_t *a, uint32_t frame, bool paused)
 {
     char t1[16], t2[16], line[48];
     uint32_t cur = (uint32_t)((uint64_t)frame * a->us_per_frame / 1000000);
-    uint32_t tot = (uint32_t)((uint64_t)a->total_frames * a->us_per_frame / 1000000);
+    uint32_t tot = (uint32_t)(((uint64_t)a->total_frames * a->us_per_frame + 500000) / 1000000);
     fmt_time(t1, sizeof t1, cur);
     fmt_time(t2, sizeof t2, tot);
     snprintf(line, sizeof line, "%s %s / %s", paused ? "||" : ">", t1, t2);
