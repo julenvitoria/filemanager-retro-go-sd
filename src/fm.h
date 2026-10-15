@@ -97,6 +97,7 @@ void view_hex(const char *path);
 typedef enum { IMG_OK, IMG_ERROR, IMG_UNSUPPORTED, IMG_PROGRESSIVE, IMG_TOO_BIG } img_result_t;
 uint32_t view_image(const char *path, img_result_t *result);   /* image.c: returns the closing key */
 bool is_image_ext(const char *name);
+bool is_macos_meta(const char *name);  /* "._name" AppleDouble files from macOS */
 bool is_video_ext(const char *name);   /* video.c */
 void play_video(const char *path);
 bool is_text_ext(const char *name);

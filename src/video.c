@@ -500,6 +500,7 @@ static void player_idle(void) { try_show(); }
 
 bool is_video_ext(const char *name)
 {
+    if (is_macos_meta(name)) return false;
     const char *dot = strrchr(name, '.');
     if (!dot) return false;
     static const char *const L[] = { "avi", "mp4", "m4v", "mkv", "mov", "webm", "wmv", "flv", "mpg", "mpeg", "3gp", "ts", NULL };

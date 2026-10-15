@@ -34,8 +34,18 @@ static bool ext_in(const char *name, const char *const *list)
     return false;
 }
 
+/* macOS writes a "._name" companion (AppleDouble metadata, not a picture) for every file it
+ * copies to a FAT card: never treat those as images or videos. */
+bool is_macos_meta(const char *name)
+{
+    const char *b = strrchr(name, '/');
+    b = b ? b + 1 : name;
+    return b[0] == '.' && b[1] == '_';
+}
+
 bool is_image_ext(const char *name)
 {
+    if (is_macos_meta(name)) return false;
     static const char *const L[] = { "jpg", "jpeg", "jpe", "png", "gif", "bmp", NULL };
     return ext_in(name, L);
 }
