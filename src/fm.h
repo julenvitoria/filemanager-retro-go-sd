@@ -38,6 +38,7 @@ enum {
     T_TOO_MANY, T_CHANGES,
     T_EDIT_TEXT, T_NEWFILE, T_ED_KB_HELP, T_ED_CUR_HELP, T_ED_MENU, T_ED_SAVE_EXIT, T_ED_EXIT_NOSAVE,
     T_ED_EXIT, T_ED_LOSE, T_ED_TOO_BIG, T_ED_FULL, T_TEXT_HELP,
+    T_IMG_PROGRESSIVE, T_IMG_TOO_BIG, T_IMG_BROKEN, T_LOADING,
     T_COUNT
 };
 
@@ -55,9 +56,12 @@ int  ui_choice(const char *title, const char *l1, const char *b1, const char *b2
 
 /* ------------------------------------------------------------------ input (main.c) */
 enum { K_UP = 1, K_DOWN = 2, K_LEFT = 4, K_RIGHT = 8, K_A = 16, K_B = 32, K_GAME = 64, K_TIME = 128,
-       K_PAUSE = 256, K_POWER = 512 };
+       K_PAUSE = 256, K_POWER = 512, K_REDRAW = 1 << 16 };
 uint32_t input_wait(void);          /* next key press (with auto-repeat for the D-pad) */
 uint32_t input_poll(void);          /* currently held keys, no waiting */
+uint32_t input_poll_pressed(void);  /* fresh presses since the last call, K_REDRAW after a firmware menu */
+void     HAL_Delay(uint32_t ms);
+uint16_t *fm_canvas(void);          /* 320x240 RGB565 buffer (the dialog background; free while viewing) */
 
 /* ------------------------------------------------------------------ paths (fsops.c) */
 void path_join(char *out, const char *dir, const char *name);
@@ -88,7 +92,9 @@ bool osk_edit(const char *title, char *text, size_t size);   /* false = cancelle
 /* ------------------------------------------------------------------ viewers (viewer.c) */
 bool view_text(const char *path);   /* true if edited and saved from the viewer */
 void view_hex(const char *path);
-bool view_bmp(const char *path);    /* false if not a BMP we can show */
+typedef enum { IMG_OK, IMG_ERROR, IMG_UNSUPPORTED, IMG_PROGRESSIVE, IMG_TOO_BIG } img_result_t;
+uint32_t view_image(const char *path, img_result_t *result);   /* image.c: returns the closing key */
+bool is_image_ext(const char *name);
 bool is_text_ext(const char *name);
 
 /* ------------------------------------------------------------------ on-screen keyboard (kbd.c) */
@@ -104,7 +110,6 @@ int  kb_activate(char *ch);         /* press the selected key: 0 = character in 
 
 /* ------------------------------------------------------------------ text editor (editor.c) */
 bool edit_text(const char *path);   /* true if the file was saved */
-bool is_bmp_ext(const char *name);
 
 /* Scratch memory shared by the copy buffer and the viewers (never used at the same time) */
 #define FM_SCRATCH_SIZE (192 * 1024)

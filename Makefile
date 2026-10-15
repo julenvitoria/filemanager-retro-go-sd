@@ -18,10 +18,13 @@ src/fsops.c \
 src/osk.c \
 src/viewer.c \
 src/editor.c \
-src/kbd.c
+src/kbd.c \
+src/image.c \
+src/third_party/picojpeg/picojpeg.c \
+src/third_party/miniz/miniz_tinfl.c
 
 CORE_C_INCLUDES := -Isrc
-CORE_C_DEFS := -DPROJECT_KIND_HOMEBREW=1
+CORE_C_DEFS := -DPROJECT_KIND_HOMEBREW=1 -DMINIZ_NO_MALLOC -DMINIZ_NO_STDIO -DMINIZ_NO_TIME
 
 GNW_CORE_SDK ?= sdk
 BUILD_DIR ?= build
