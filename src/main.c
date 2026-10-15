@@ -98,6 +98,7 @@ static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_VID_CODEC]      = S("Video codec not supported", "Códec de vídeo no soportado"),
     [T_VID_SIZE]       = S("Video too big", "Vídeo demasiado grande"),
     [T_VID_NO_AUDIO]   = S("Audio not supported: no sound", "Audio no soportado: sin sonido"),
+    [T_VID_SUBSAMPLING]= S("MJPEG must be colour 4:2:0", "El MJPEG debe ser en color 4:2:0"),
     [T_CANCELLED]      = S("Cancelled", "Cancelado"),
     [T_CLEAR_CLIP]     = S("Clear clipboard", "Vaciar portapapeles"),
     [T_PATH]           = S("Path", "Ruta"),

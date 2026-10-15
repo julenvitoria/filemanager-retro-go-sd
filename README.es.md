@@ -213,7 +213,9 @@ los puede decodificar: al abrirlos sale un aviso. Conviértelos en el PC con
 ffmpeg -i input.mp4 -vf "scale=320:240:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=15" -c:v mjpeg -q:v 5 -pix_fmt yuvj420p -c:a pcm_s16le -ar 22050 -ac 1 output.avi
 ```
 
-Así sale un vídeo de 320x240 (o menos, manteniendo la forma) a 15 fotogramas por segundo con sonido
+La parte `-pix_fmt yuvj420p` es importante: el decodificador JPEG de la consola solo admite
+fotogramas en color 4:2:0 (los MJPEG 4:2:2, 4:4:4 o en grises dan un aviso). Así sale un vídeo de
+320x240 (o menos, manteniendo la forma) a 15 fotogramas por segundo con sonido
 mono a 22 kHz. `-q:v` es la calidad (2 = la mejor y más grande, 10 = la más pequeña); `fps=15` se
 puede subir si la tarjeta lee lo bastante rápido. Un clip de 4 minutos ocupa unos 30-40 MB. El
 audio PCM a otras frecuencias se convierte al reproducir; el comprimido (MP3, AAC…) se reproduce sin
