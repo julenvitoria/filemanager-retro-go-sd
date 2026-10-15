@@ -63,6 +63,9 @@ uint32_t input_poll(void);          /* currently held keys, no waiting */
 uint32_t input_poll_pressed(void);  /* fresh presses since the last call, K_REDRAW after a firmware menu */
 void     HAL_Delay(uint32_t ms);
 uint16_t *fm_canvas(void);
+bool fm_overlay_expired(void);
+void fm_overlay_draw(void);          /* the indicator over the active buffer */
+void fm_overlay_clear(void);       /* true once when the volume/brightness indicator times out */
 extern void (*fm_menu_hook)(bool entering);   /* called around the Retro-Go menu (video: mute) */          /* 320x240 RGB565 buffer (the dialog background; free while viewing) */
 
 /* ------------------------------------------------------------------ paths (fsops.c) */
@@ -97,6 +100,7 @@ void view_hex(const char *path);
 typedef enum { IMG_OK, IMG_ERROR, IMG_UNSUPPORTED, IMG_PROGRESSIVE, IMG_TOO_BIG } img_result_t;
 uint32_t view_image(const char *path, img_result_t *result);   /* image.c: returns the closing key */
 bool is_image_ext(const char *name);
+bool is_image_file(const char *path);   /* by extension, plus .img covers by content */
 bool is_macos_meta(const char *name);  /* "._name" AppleDouble files from macOS */
 bool is_video_ext(const char *name);   /* video.c */
 void play_video(const char *path);
