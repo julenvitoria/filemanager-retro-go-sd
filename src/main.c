@@ -88,8 +88,11 @@ static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_FAST_RENAME]    = S("Rename/move: instant", "Renombrar/mover: instantáneo"),
     [T_SLOW_RENAME]    = S("Rename/move: copy + delete", "Renombrar/mover: copia y borra"),
     [T_OSK_HELP]       = S("A:Type B:Del TIME:abc/ABC GAME:OK", "A:Escribe B:Borra TIME:abc/ABC GAME:OK"),
-    [T_VIEW_HELP]      = S("Up/Down:Scroll Left/Right:Page B:Back", "Arr/Abj:Mover Izq/Der:Pagina B:Salir"),
     [T_IMG_UNSUPPORTED]= S("Unsupported image format", "Formato de imagen no soportado"),
+    [T_IMG_PROGRESSIVE]= S("Progressive JPEG: not supported", "JPEG progresivo: no soportado"),
+    [T_IMG_TOO_BIG]    = S("Image too big", "Imagen demasiado grande"),
+    [T_IMG_BROKEN]     = S("Damaged or unreadable image", "Imagen dañada o ilegible"),
+    [T_LOADING]        = S("Loading...", "Cargando..."),
     [T_CANCELLED]      = S("Cancelled", "Cancelado"),
     [T_CLEAR_CLIP]     = S("Clear clipboard", "Vaciar portapapeles"),
     [T_PATH]           = S("Path", "Ruta"),
@@ -273,44 +276,60 @@ uint32_t input_poll(void)
 
 /* Next key press. D-pad auto-repeats. PAUSE (and PAUSE combos, POWER) go to the firmware:
  * Retro-Go menu, brightness/volume shortcuts, sleep. Returns 0 if the screen must be redrawn. */
+static uint32_t g_held = ~0u;     /* ignore keys still down from the previous screen */
+static uint32_t g_repeat_at = 0;
+
+/* One poll step. Returns fresh presses (D-pad auto-repeats), K_REDRAW after a firmware menu
+ * (PAUSE / POWER), or 0 if nothing happened. */
+static uint32_t input_step(void)
+{
+    wdog_refresh();
+    uint32_t k = input_poll();
+    if (k & (K_PAUSE | K_POWER)) {
+        /* The firmware acts on the release of PAUSE (menu) unless a combo was used
+         * (PAUSE+B brightness, PAUSE+GAME screenshot...), so feed it every poll until the
+         * keys are up, including that last "released" one. */
+        dialog_prepare();
+        do {
+            wdog_refresh();
+            common_emu_input_loop(&joy, (odroid_dialog_choice_t *)no_options, &repaint_current);
+            HAL_Delay(10);
+            k = input_poll();
+        } while (k & (K_PAUSE | K_POWER));
+        common_emu_input_loop(&joy, (odroid_dialog_choice_t *)no_options, &repaint_current);
+        g_held = ~0u;
+        return K_REDRAW;
+    }
+    uint32_t now = HAL_GetTick();
+    uint32_t fresh = k & ~g_held;
+    if (g_held == ~0u) fresh = 0;
+    g_held = k;
+    if (fresh) {
+        g_repeat_at = now + 350;
+        return fresh;
+    }
+    const uint32_t dpad = K_UP | K_DOWN | K_LEFT | K_RIGHT;
+    if ((k & dpad) && (int32_t)(now - g_repeat_at) >= 0) {
+        g_repeat_at = now + 60;
+        return k & dpad;
+    }
+    return 0;
+}
+
+/* Next key press. Returns 0 if the screen must be redrawn (after a firmware menu). */
 uint32_t input_wait(void)
 {
-    static uint32_t held = ~0u;   /* ignore keys still down from the previous screen */
-    static uint32_t repeat_at = 0;
     for (;;) {
-        wdog_refresh();
-        uint32_t k = input_poll();
-        if (k & (K_PAUSE | K_POWER)) {
-            /* The firmware acts on the release of PAUSE (menu) unless a combo was used
-             * (PAUSE+B brightness, PAUSE+GAME screenshot...), so feed it every poll until the
-             * keys are up, including that last "released" one. */
-            dialog_prepare();
-            do {
-                wdog_refresh();
-                common_emu_input_loop(&joy, (odroid_dialog_choice_t *)no_options, &repaint_current);
-                HAL_Delay(10);
-                k = input_poll();
-            } while (k & (K_PAUSE | K_POWER));
-            common_emu_input_loop(&joy, (odroid_dialog_choice_t *)no_options, &repaint_current);
-            held = ~0u;
-            return 0;
-        }
-        uint32_t now = HAL_GetTick();
-        uint32_t fresh = k & ~held;
-        if (held == ~0u) fresh = 0;
-        held = k;
-        if (fresh) {
-            repeat_at = now + 350;
-            return fresh;
-        }
-        const uint32_t dpad = K_UP | K_DOWN | K_LEFT | K_RIGHT;
-        if ((k & dpad) && (int32_t)(now - repeat_at) >= 0) {
-            repeat_at = now + 60;
-            return k & dpad;
-        }
+        uint32_t k = input_step();
+        if (k & K_REDRAW) return 0;
+        if (k) return k;
         HAL_Delay(10);
     }
 }
+
+uint32_t input_poll_pressed(void) { return input_step(); }
+
+uint16_t *fm_canvas(void) { return g_dialog_bg; }
 
 /* ================================================================ directory listing */
 
@@ -703,6 +722,37 @@ static void do_sdinfo(void)
     ui_message(tr(T_SDINFO), l1, l2, l3, false);
 }
 
+/* Image viewer over the current folder: left/right go to the previous/next picture. */
+static void view_images(void)
+{
+    for (;;) {
+        char p[FM_PATH_MAX];
+        path_join(p, g_cwd, ename(&g_ent[g_cursor]));
+        img_result_t r;
+        uint32_t k = view_image(p, &r);
+        if (r != IMG_OK) {
+            draw_list();
+            ui_message(path_base(p), tr(r == IMG_PROGRESSIVE ? T_IMG_PROGRESSIVE : r == IMG_TOO_BIG ? T_IMG_TOO_BIG :
+                                         r == IMG_UNSUPPORTED ? T_IMG_UNSUPPORTED : T_IMG_BROKEN), NULL, NULL, false);
+            return;
+        }
+        if (k == 0 || (k & K_REDRAW)) continue;            /* after the firmware menu: show it again */
+        if (k & (K_LEFT | K_RIGHT)) {
+            int d = (k & K_RIGHT) ? 1 : -1;
+            for (int i = 1; i < g_count; i++) {
+                int j = (g_cursor + d * i + g_count) % g_count;
+                if (!g_ent[j].dir && is_image_ext(ename(&g_ent[j]))) { g_cursor = j; break; }
+            }
+            continue;
+        }
+        if (k & (K_B | K_A | K_GAME | K_TIME)) {
+            if (g_cursor < g_top) g_top = g_cursor;
+            if (g_cursor >= g_top + LIST_ROWS) g_top = g_cursor - LIST_ROWS + 1;
+            return;
+        }
+    }
+}
+
 static void open_entry(bool force_text, bool force_hex)
 {
     if (!g_count) return;
@@ -720,7 +770,7 @@ static void open_entry(bool force_text, bool force_hex)
     snprintf(name, sizeof name, "%s", ename(e));
     if (force_hex) view_hex(p);
     else if (force_text) view_text(p);
-    else if (is_bmp_ext(p)) { if (!view_bmp(p)) { draw_list(); ui_message(tr(T_ERROR), tr(T_IMG_UNSUPPORTED), NULL, NULL, false); } }
+    else if (is_image_ext(p)) { view_images(); return; }
     else if (is_text_ext(p)) view_text(p);
     else view_hex(p);
     load_dir(name);          /* the file may have been edited: refresh size and date */
