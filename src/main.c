@@ -93,6 +93,11 @@ static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_IMG_TOO_BIG]    = S("Image too big", "Imagen demasiado grande"),
     [T_IMG_BROKEN]     = S("Damaged or unreadable image", "Imagen dañada o ilegible"),
     [T_LOADING]        = S("Loading...", "Cargando..."),
+    [T_VID_FORMAT]     = S("Video format not supported", "Formato de vídeo no soportado"),
+    [T_VID_CONVERT]    = S("Convert it to AVI MJPEG (see README)", "Conviértelo a AVI MJPEG (ver README)"),
+    [T_VID_CODEC]      = S("Video codec not supported", "Códec de vídeo no soportado"),
+    [T_VID_SIZE]       = S("Video too big", "Vídeo demasiado grande"),
+    [T_VID_NO_AUDIO]   = S("Audio not supported: no sound", "Audio no soportado: sin sonido"),
     [T_CANCELLED]      = S("Cancelled", "Cancelado"),
     [T_CLEAR_CLIP]     = S("Clear clipboard", "Vaciar portapapeles"),
     [T_PATH]           = S("Path", "Ruta"),
@@ -276,6 +281,7 @@ uint32_t input_poll(void)
 
 /* Next key press. D-pad auto-repeats. PAUSE (and PAUSE combos, POWER) go to the firmware:
  * Retro-Go menu, brightness/volume shortcuts, sleep. Returns 0 if the screen must be redrawn. */
+void (*fm_menu_hook)(bool entering);
 static uint32_t g_held = ~0u;     /* ignore keys still down from the previous screen */
 static uint32_t g_repeat_at = 0;
 
@@ -289,6 +295,7 @@ static uint32_t input_step(void)
         /* The firmware acts on the release of PAUSE (menu) unless a combo was used
          * (PAUSE+B brightness, PAUSE+GAME screenshot...), so feed it every poll until the
          * keys are up, including that last "released" one. */
+        if (fm_menu_hook) fm_menu_hook(true);
         dialog_prepare();
         do {
             wdog_refresh();
@@ -297,6 +304,7 @@ static uint32_t input_step(void)
             k = input_poll();
         } while (k & (K_PAUSE | K_POWER));
         common_emu_input_loop(&joy, (odroid_dialog_choice_t *)no_options, &repaint_current);
+        if (fm_menu_hook) fm_menu_hook(false);
         g_held = ~0u;
         return K_REDRAW;
     }
@@ -771,6 +779,7 @@ static void open_entry(bool force_text, bool force_hex)
     if (force_hex) view_hex(p);
     else if (force_text) view_text(p);
     else if (is_image_ext(p)) { view_images(); return; }
+    else if (is_video_ext(p)) play_video(p);
     else if (is_text_ext(p)) view_text(p);
     else view_hex(p);
     load_dir(name);          /* the file may have been edited: refresh size and date */

@@ -39,6 +39,7 @@ enum {
     T_EDIT_TEXT, T_NEWFILE, T_ED_KB_HELP, T_ED_CUR_HELP, T_ED_MENU, T_ED_SAVE_EXIT, T_ED_EXIT_NOSAVE,
     T_ED_EXIT, T_ED_LOSE, T_ED_TOO_BIG, T_ED_FULL, T_TEXT_HELP,
     T_IMG_PROGRESSIVE, T_IMG_TOO_BIG, T_IMG_BROKEN, T_LOADING,
+    T_VID_FORMAT, T_VID_CONVERT, T_VID_CODEC, T_VID_SIZE, T_VID_NO_AUDIO,
     T_COUNT
 };
 
@@ -61,7 +62,8 @@ uint32_t input_wait(void);          /* next key press (with auto-repeat for the 
 uint32_t input_poll(void);          /* currently held keys, no waiting */
 uint32_t input_poll_pressed(void);  /* fresh presses since the last call, K_REDRAW after a firmware menu */
 void     HAL_Delay(uint32_t ms);
-uint16_t *fm_canvas(void);          /* 320x240 RGB565 buffer (the dialog background; free while viewing) */
+uint16_t *fm_canvas(void);
+extern void (*fm_menu_hook)(bool entering);   /* called around the Retro-Go menu (video: mute) */          /* 320x240 RGB565 buffer (the dialog background; free while viewing) */
 
 /* ------------------------------------------------------------------ paths (fsops.c) */
 void path_join(char *out, const char *dir, const char *name);
@@ -95,6 +97,8 @@ void view_hex(const char *path);
 typedef enum { IMG_OK, IMG_ERROR, IMG_UNSUPPORTED, IMG_PROGRESSIVE, IMG_TOO_BIG } img_result_t;
 uint32_t view_image(const char *path, img_result_t *result);   /* image.c: returns the closing key */
 bool is_image_ext(const char *name);
+bool is_video_ext(const char *name);   /* video.c */
+void play_video(const char *path);
 bool is_text_ext(const char *name);
 
 /* ------------------------------------------------------------------ on-screen keyboard (kbd.c) */

@@ -20,6 +20,7 @@ src/viewer.c \
 src/editor.c \
 src/kbd.c \
 src/image.c \
+src/video.c \
 src/third_party/picojpeg/picojpeg.c \
 src/third_party/miniz/miniz_tinfl.c
 
