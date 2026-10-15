@@ -11,7 +11,10 @@ tarjeta SD desde la propia consola: copiar, mover, renombrar, borrar, ver y edit
 - **Copiar, cortar (mover) y pegar** archivos y **carpetas completas**, con todo su contenido.
 - **Renombrar**, **borrar** (con confirmación), **crear carpetas** y **crear archivos de texto**.
 - **Selección múltiple**: las acciones se aplican a todo lo seleccionado.
-- **Ver** archivos de texto, en hexadecimal e **imágenes BMP** (también las capturas del firmware).
+- **Ver** archivos de texto, en hexadecimal e **imágenes**: JPEG, PNG, GIF (también animados) y BMP
+  (también las capturas del firmware).
+- **Ver vídeos**: AVI con vídeo Motion-JPEG y sonido PCM (los tuyos se convierten con un comando de
+  ffmpeg).
 - **Editar texto** (`.txt`, `.cfg`, `.ini`…) con un teclado en pantalla.
 - **Editar en hexadecimal** cualquier archivo, con un teclado hexadecimal.
 - **Información** de archivos y carpetas, y de la **tarjeta SD** (capacidad, usado, libre).
@@ -45,7 +48,8 @@ hay seleccionados (`*3`) y lo que hay en el portapapeles (`[2 para copiar]`).
 | PAUSE/SET | Menú de Retro-Go (brillo, volumen, salir, apagar) |
 
 Al pulsar **A** sobre un archivo:
-- `.bmp` → visor de imágenes;
+- `.jpg`, `.png`, `.gif`, `.bmp` → visor de imágenes;
+- `.avi` → reproductor de vídeo (`.mp4`, `.mkv`, `.mov`… explican cómo convertirlos);
 - `.txt`, `.cfg`, `.ini`, `.log`, `.json`, `.xml`, `.csv`, `.md`, `.c`, `.h`… → visor de texto;
 - cualquier otro → visor hexadecimal.
 
@@ -172,11 +176,50 @@ Seguridad:
 
 ## 7. El visor de imágenes
 
-Muestra archivos BMP de 8, 16, 24 y 32 bits, reducidos para caber en la pantalla. Sirve para ver
-las capturas que hace el firmware con PAUSE + GAME. Cualquier botón vuelve a la lista.
+Muestra imágenes **JPEG**, **PNG**, **GIF** y **BMP** de cualquier tamaño, ajustadas a la pantalla
+(las pequeñas se amplían a un múltiplo exacto para que se vean nítidas).
 
-## 8. Consejos
+| Botón | Acción |
+|---|---|
+| Izquierda / derecha | Imagen anterior / siguiente de la carpeta |
+| A, B, GAME, TIME | Volver a la lista |
 
+- JPEG: los normales (*baseline*, los de cámaras y móviles). Las fotos de más de 2560 px de ancho
+  se decodifican a 1/8, que es rápido y sigue siendo más que la pantalla. **Los JPEG progresivos
+  no están soportados** (sale un aviso).
+- PNG: todos los tipos de color y profundidades, transparencia (sobre fondo negro) y entrelazados.
+- GIF: las animaciones se reproducen con sus tiempos.
+- BMP: 8, 16, 24 y 32 bits, como las capturas que hace el firmware con PAUSE + GAME.
+- Con archivos grandes sale "Cargando..." un momento.
+
+## 8. El reproductor de vídeo
+
+Reproduce **archivos AVI con vídeo Motion-JPEG (como mucho 320x240) y sonido PCM**. Cada fotograma
+lo decodifica el chip JPEG de la consola, y la imagen va sincronizada con el sonido.
+
+| Botón | Acción |
+|---|---|
+| A | Pausa / seguir (muestra el tiempo y una barra de progreso) |
+| Izquierda / derecha | Atrás / adelante 10 segundos |
+| Abajo / arriba | Atrás / adelante 1 minuto |
+| B | Parar |
+| PAUSE/SET | Menú de Retro-Go (volumen, brillo…); el vídeo se silencia mientras |
+
+Los vídeos del móvil o de internet (MP4, MKV, MOV, WebM… con H.264, H.265, VP9…) la consola no
+los puede decodificar: al abrirlos sale un aviso. Conviértelos en el PC con
+[ffmpeg](https://ffmpeg.org/) (Windows, macOS y Linux):
+
+```
+ffmpeg -i input.mp4 -vf "scale=320:240:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=15" -c:v mjpeg -q:v 5 -pix_fmt yuvj420p -c:a pcm_s16le -ar 22050 -ac 1 output.avi
+```
+
+Así sale un vídeo de 320x240 (o menos, manteniendo la forma) a 15 fotogramas por segundo con sonido
+mono a 22 kHz. `-q:v` es la calidad (2 = la mejor y más grande, 10 = la más pequeña); `fps=15` se
+puede subir si la tarjeta lee lo bastante rápido. Un clip de 4 minutos ocupa unos 30-40 MB. El
+audio PCM a otras frecuencias se convierte al reproducir; el comprimido (MP3, AAC…) se reproduce sin
+sonido.
+
+## 9. Consejos
 - Para editar la configuración de un emulador o un `.cfg`, ábrelo con **GAME → Editar texto**.
 - Para tocar una partida guardada, haz antes una copia (Copiar → Pegar en la misma carpeta crea
   `nombre (2).ext`) y edita el original en hexadecimal.
@@ -223,14 +266,24 @@ programa arranca también en firmwares sin las funciones nuevas).
 - `src/osk.c`: teclado de nombres (pantalla completa).
 - `src/kbd.c`: teclado acoplado abajo (texto, hexadecimal y columna de texto del editor hex).
 - `src/editor.c`: editor de texto.
-- `src/viewer.c`: visores de texto, hexadecimal (con editor) y BMP.
+- `src/viewer.c`: visores de texto y hexadecimal (con el editor hexadecimal).
+- `src/image.c`: visor de imágenes (JPEG, PNG, GIF, BMP) con un escalado por bandas.
+- `src/video.c`: reproductor de vídeo AVI/MJPEG.
+- `src/third_party/`: [picojpeg](https://github.com/richgel999/picojpeg) (dominio público) y la
+  parte de descompresión de [miniz](https://github.com/richgel999/miniz) (MIT), para JPEG y PNG.
 
 ## Estado
 
 Probado en el emulador gwemu, con el firmware `external_cores` con el cambio y sin él:
 
 - navegación;
-- visores de texto, hexadecimal y BMP de 16 y 24 bits;
+- visores de texto y hexadecimal;
+- visor de imágenes: JPEG grande (a 1/8) y normal, JPEG en grises, aviso de JPEG progresivo, PNG
+  (pequeño ampliado, RGBA, paleta, 16 bits, entrelazado), GIF animado, BMP, pasar de imagen con
+  izquierda/derecha;
+- reproductor de vídeo: reproducción con sonido, pausa, saltos adelante y atrás, final del
+  archivo, vídeo sin sonido, sonido estéreo a 24 kHz (convertido) y los avisos de MPEG-4,
+  tamaño excesivo y MP4;
 - copia de carpetas con subcarpetas: resultado idéntico byte a byte;
 - mover (instantáneo y por copia + borrado);
 - renombrar con el teclado;
@@ -244,8 +297,10 @@ Probado en el emulador gwemu, con el firmware `external_cores` con el cambio y s
   guardar y crear un archivo nuevo.
 
 En la consola se ha probado la parte de archivos (navegar, copiar, mover, renombrar, borrar…).
-Los editores de texto y hexadecimal, de momento, solo en el emulador.
+Los editores de texto y hexadecimal y los visores de imágenes y vídeo, de momento, solo en el
+emulador.
 
 ## Licencia
 
-MIT (ver `LICENSE`). Las cabeceras de `sdk/include/` mantienen sus licencias originales.
+MIT (ver `LICENSE`). Las cabeceras de `sdk/include/` mantienen sus licencias originales; picojpeg
+es de dominio público y miniz es MIT (`src/third_party/`).
