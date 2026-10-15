@@ -210,7 +210,9 @@ decoded by the console: opening one shows a message. Convert them on a PC with
 ffmpeg -i input.mp4 -vf "scale=320:240:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=15" -c:v mjpeg -q:v 5 -pix_fmt yuvj420p -c:a pcm_s16le -ar 22050 -ac 1 output.avi
 ```
 
-This makes a 320x240 (or smaller, keeping the shape) video at 15 frames per second with mono
+The `-pix_fmt yuvj420p` part matters: the console's JPEG decoder only handles colour 4:2:0 frames
+(4:2:2, 4:4:4 or greyscale MJPEG get a message). This makes a 320x240 (or smaller, keeping the
+shape) video at 15 frames per second with mono
 22 kHz sound. `-q:v` sets the quality (2 = best and biggest, 10 = smallest); `fps=15` can be
 raised if the card reads fast enough. A 4-minute clip takes about 30-40 MB. Audio in other PCM
 rates is converted while playing; compressed audio (MP3, AAC…) plays without sound.

@@ -390,30 +390,37 @@ static void draw_osd(const avi_t *a, uint32_t frame, bool paused)
 }
 
 /* JPEG SOF size check, so the hardware decoder never gets more than its buffer */
-static bool frame_fits(const uint8_t *d, uint32_t n)
+/* What the hardware decoder path can show. The firmware's decoder only handles colour 4:2:0
+ * frames correctly (4:2:2 is sized and converted as 4:4:4 and asserts when it does not fit;
+ * greyscale is not converted), so only those are passed to it. */
+typedef enum { FR_OK, FR_SUBSAMPLING, FR_BAD } frame_kind_t;
+
+static frame_kind_t frame_kind(const uint8_t *d, uint32_t n)
 {
-    if (n < 4 || d[0] != 0xFF || d[1] != 0xD8) return false;
+    if (n < 4 || d[0] != 0xFF || d[1] != 0xD8) return FR_BAD;
     uint32_t i = 2;
-    while (i + 9 < n) {
+    while (i + 12 < n) {
         if (d[i] != 0xFF) { i++; continue; }
         uint8_t m = d[i + 1];
-        if (m == 0xD8 || m == 0x01 || (m >= 0xD0 && m <= 0xD7)) { i += 2; continue; }
+        if (m == 0xD8 || m == 0x01 || m == 0xFF || (m >= 0xD0 && m <= 0xD7)) { i += m == 0xFF ? 1 : 2; continue; }
         uint32_t len = (uint32_t)(d[i + 2] << 8 | d[i + 3]);
         if (m >= 0xC0 && m <= 0xC3) {
             int h = d[i + 5] << 8 | d[i + 6], w = d[i + 7] << 8 | d[i + 8];
             int ncomp = d[i + 9];
-            if (w <= 0 || h <= 0 || w > FM_W || h > FM_H) return false;
-            int hs = ncomp == 3 ? d[i + 11] >> 4 : 1, vs = ncomp == 3 ? d[i + 11] & 15 : 1;
-            int mw = hs * 8, mh = vs * 8;
-            uint32_t pw = (uint32_t)((w + mw - 1) / mw * mw), ph = (uint32_t)((h + mh - 1) / mh * mh);
-            uint32_t bytes = ncomp == 1 ? pw * ph : (hs == 2 && vs == 2) ? pw * ph * 3 / 2 : (hs == 2) ? pw * ph * 2 : pw * ph * 3;
-            return bytes <= YCBCR_SIZE;
+            if (w <= 0 || h <= 0 || w > FM_W || h > FM_H) return FR_BAD;
+            if (ncomp == 3 && i + 18 > n) return FR_BAD;
+            if (ncomp != 3 || d[i + 11] != 0x22) return FR_SUBSAMPLING;   /* Y must be H2V2 */
+            if (d[i + 14] != 0x11 || d[i + 17] != 0x11) return FR_SUBSAMPLING;
+            uint32_t pw = (uint32_t)((w + 15) / 16 * 16), ph = (uint32_t)((h + 15) / 16 * 16);
+            return pw * ph * 3 / 2 <= YCBCR_SIZE ? FR_OK : FR_BAD;
         }
-        if (m == 0xDA) return false;
+        if (m == 0xDA) return FR_BAD;
         i += 2 + len;
     }
-    return false;
+    return FR_BAD;
 }
+
+static bool frame_fits(const uint8_t *d, uint32_t n) { return frame_kind(d, n) == FR_OK; }
 
 static void show_frame(const avi_t *a, const uint8_t *data, bool osd, uint32_t frame, bool paused)
 {
@@ -537,6 +544,22 @@ void play_video(const char *path)
         fclose(a.f);
         message(title, l1, tr(T_VID_CONVERT));
         return;
+    }
+    /* the first frame tells the JPEG layout: only colour 4:2:0 can be decoded here */
+    {
+        avi_t probe = a;
+        int kind; uint32_t size, data;
+        while (next_chunk(&probe, &kind, &size, &data)) {
+            if (kind != 0 || size < 64) continue;
+            uint32_t n = size < 4096 ? size : 4096;
+            uint8_t *hdr = (uint8_t *)fm_canvas();
+            if (rd(&a, data, hdr, n) && frame_kind(hdr, n) == FR_SUBSAMPLING) {
+                fclose(a.f);
+                message(title, tr(T_VID_SUBSAMPLING), tr(T_VID_CONVERT));
+                return;
+            }
+            break;
+        }
     }
     bool sound = a.astream >= 0 && (a.a_format == 1 || a.a_format == 0xFFFE) &&
                  (a.a_bits == 8 || a.a_bits == 16) && a.a_channels >= 1 && a.a_channels <= 8 && a.a_rate >= 4000;
