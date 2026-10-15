@@ -46,9 +46,11 @@ hay seleccionados (`*3`) y lo que hay en el portapapeles (`[2 para copiar]`).
 | TIME | Seleccionar / quitar selección del elemento (y baja al siguiente) |
 | GAME | Menú de acciones |
 | PAUSE/SET | Menú de Retro-Go (brillo, volumen, salir, apagar) |
+| PAUSE/SET + cruceta | Atajos de brillo / volumen, con su indicador en pantalla |
 
 Al pulsar **A** sobre un archivo:
-- `.jpg`, `.png`, `.gif`, `.bmp` → visor de imágenes;
+- `.jpg`, `.png`, `.gif`, `.bmp` → visor de imágenes; también las carátulas `.img` de Retro-Go
+  (`/covers/...`), reconocidas por su contenido (otros `.img`, como imágenes de disco, se abren en hex);
 - `.avi` → reproductor de vídeo (`.mp4`, `.mkv`, `.mov`… explican cómo convertirlos);
 - `.txt`, `.cfg`, `.ini`, `.log`, `.json`, `.xml`, `.csv`, `.md`, `.c`, `.h`… → visor de texto;
 - cualquier otro → visor hexadecimal.
@@ -190,6 +192,7 @@ Muestra imágenes **JPEG**, **PNG**, **GIF** y **BMP** de cualquier tamaño, aju
 - PNG: todos los tipos de color y profundidades, transparencia (sobre fondo negro) y entrelazados.
 - GIF: las animaciones se reproducen con sus tiempos.
 - BMP: 8, 16, 24 y 32 bits, como las capturas que hace el firmware con PAUSE + GAME.
+- Carátulas de Retro-Go (`.img`, con JPEG dentro), para revisar las miniaturas de `/covers`.
 - Con archivos grandes sale "Cargando..." un momento.
 
 ## 8. El reproductor de vídeo
@@ -204,6 +207,7 @@ lo decodifica el chip JPEG de la consola, y la imagen va sincronizada con el son
 | Abajo / arriba | Atrás / adelante 1 minuto |
 | B | Parar |
 | PAUSE/SET | Menú de Retro-Go (volumen, brillo…); el vídeo se silencia mientras |
+| PAUSE/SET + cruceta | Volumen / brillo, con el indicador sobre el vídeo |
 
 Los vídeos del móvil o de internet (MP4, MKV, MOV, WebM… con H.264, H.265, VP9…) la consola no
 los puede decodificar: al abrirlos sale un aviso. Conviértelos en el PC con

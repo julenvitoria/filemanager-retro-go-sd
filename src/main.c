@@ -221,6 +221,26 @@ static void repaint_current(void)
     memcpy(lcd_get_active_buffer(), g_dialog_bg, sizeof g_dialog_bg);
 }
 
+/* Volume/brightness indicator of the firmware shortcuts (PAUSE+D-pad): it only appears when the
+ * app draws it (common_ingame_overlay) on its frames. Disappears 1 s after the last change. */
+bool fm_overlay_expired(void)
+{
+    if (common_emu_state.overlay == INGAME_OVERLAY_NONE) return false;
+    if (get_elapsed_time_since(common_emu_state.last_overlay_time) <= 1000) return false;
+    common_emu_state.overlay = INGAME_OVERLAY_NONE;
+    return true;
+}
+void fm_overlay_draw(void) { common_ingame_overlay(); }
+void fm_overlay_clear(void) { common_emu_state.overlay = INGAME_OVERLAY_NONE; }
+static void overlay_show(void)
+{
+    if (common_emu_state.overlay == INGAME_OVERLAY_NONE) return;
+    lcd_sleep_while_swap_pending();
+    repaint_current();
+    common_ingame_overlay();
+    lcd_swap();
+}
+
 int ui_message(const char *title, const char *l1, const char *l2, const char *l3, bool yes_no)
 {
     odroid_dialog_choice_t ch[8];
@@ -301,10 +321,20 @@ static uint32_t input_step(void)
         do {
             wdog_refresh();
             common_emu_input_loop(&joy, (odroid_dialog_choice_t *)no_options, &repaint_current);
+            overlay_show();                 /* PAUSE+D-pad: volume / brightness indicator */
             HAL_Delay(10);
             k = input_poll();
         } while (k & (K_PAUSE | K_POWER));
         common_emu_input_loop(&joy, (odroid_dialog_choice_t *)no_options, &repaint_current);
+        /* a shortcut was used (no menu): keep its indicator a moment, as in the emulators.
+         * The video player draws it over its own frames instead. */
+        if (!fm_menu_hook)
+            while (common_emu_state.overlay != INGAME_OVERLAY_NONE && !fm_overlay_expired()) {
+                wdog_refresh();
+                overlay_show();
+                HAL_Delay(20);
+                if (input_poll()) break;
+            }
         if (fm_menu_hook) fm_menu_hook(false);
         g_held = ~0u;
         return K_REDRAW;
@@ -750,7 +780,9 @@ static void view_images(void)
             int d = (k & K_RIGHT) ? 1 : -1;
             for (int i = 1; i < g_count; i++) {
                 int j = (g_cursor + d * i + g_count) % g_count;
-                if (!g_ent[j].dir && is_image_ext(ename(&g_ent[j]))) { g_cursor = j; break; }
+                char q[FM_PATH_MAX];
+                path_join(q, g_cwd, ename(&g_ent[j]));
+                if (!g_ent[j].dir && is_image_file(q)) { g_cursor = j; break; }
             }
             continue;
         }
@@ -779,7 +811,7 @@ static void open_entry(bool force_text, bool force_hex)
     snprintf(name, sizeof name, "%s", ename(e));
     if (force_hex) view_hex(p);
     else if (force_text) view_text(p);
-    else if (is_image_ext(p)) { view_images(); return; }
+    else if (is_image_file(p)) { view_images(); return; }
     else if (is_video_ext(p)) play_video(p);
     else if (is_text_ext(p)) view_text(p);
     else view_hex(p);

@@ -45,9 +45,11 @@ position, how many items are selected (`*3`) and what is in the clipboard (`[2 t
 | TIME | Select / deselect the item (and move to the next one) |
 | GAME | Actions menu |
 | PAUSE/SET | Retro-Go menu (brightness, volume, exit, power off) |
+| PAUSE/SET + D-pad | Brightness / volume shortcuts, with their on-screen indicator |
 
 Pressing **A** on a file opens:
-- `.jpg`, `.png`, `.gif`, `.bmp` → image viewer;
+- `.jpg`, `.png`, `.gif`, `.bmp` → image viewer; also the `.img` cover thumbnails of Retro-Go
+  (`/covers/...`), recognised by their content (other `.img` files, such as disk images, open in hex);
 - `.avi` → video player (`.mp4`, `.mkv`, `.mov`… show how to convert them);
 - `.txt`, `.cfg`, `.ini`, `.log`, `.json`, `.xml`, `.csv`, `.md`, `.c`, `.h`… → text viewer;
 - anything else → hex viewer.
@@ -187,6 +189,7 @@ are enlarged by a whole factor so they stay sharp).
 - PNG: every colour type and bit depth, transparency (shown over black) and interlaced files.
 - GIF: animations play with their own timing.
 - BMP: 8, 16, 24 and 32 bits, such as the screenshots the firmware takes with PAUSE + GAME.
+- Retro-Go covers (`.img`, JPEG inside), so the thumbnails in `/covers` can be checked.
 - Big files show "Loading..." for a moment.
 
 ## 8. The video player
@@ -201,6 +204,7 @@ by the console's hardware JPEG decoder, and the picture follows the sound.
 | Down / up | Back / forward 1 minute |
 | B | Stop |
 | PAUSE/SET | Retro-Go menu (volume, brightness…); the video is silenced meanwhile |
+| PAUSE/SET + D-pad | Volume / brightness, with the indicator over the video |
 
 Videos from phones or the internet (MP4, MKV, MOV, WebM… with H.264, H.265, VP9…) can't be
 decoded by the console: opening one shows a message. Convert them on a PC with

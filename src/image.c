@@ -50,6 +50,23 @@ bool is_image_ext(const char *name)
     return ext_in(name, L);
 }
 
+/* Also Retro-Go's ".img" cover thumbnails (JPEG inside). ".img" is a disk image too, so for that
+ * extension the first bytes decide. */
+bool is_image_file(const char *path)
+{
+    if (is_image_ext(path)) return true;
+    static const char *const I[] = { "img", NULL };
+    if (is_macos_meta(path) || !ext_in(path, I)) return false;
+    uint8_t m[4] = { 0 };
+    FILE *f = fopen(path, "rb");
+    if (!f) return false;
+    size_t n = fread(m, 1, sizeof m, f);
+    fclose(f);
+    if (n < 4) return false;
+    return (m[0] == 0xFF && m[1] == 0xD8 && m[2] == 0xFF) || (m[0] == 0x89 && m[1] == 'P' && m[2] == 'N' && m[3] == 'G') ||
+           (m[0] == 'G' && m[1] == 'I' && m[2] == 'F') || (m[0] == 'B' && m[1] == 'M');
+}
+
 static inline uint16_t rgb565(unsigned r, unsigned g, unsigned b)
 {
     return (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));

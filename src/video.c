@@ -289,7 +289,7 @@ static uint32_t           g_rs_step, g_rs_phase;   /* resampling (16.16) when th
 static int32_t            g_rs_prev;
 
 static uint32_t g_keys;                    /* presses waiting to be handled by the player loop */
-#define URGENT_KEYS (K_B | K_LEFT | K_RIGHT | K_UP | K_DOWN)   /* stop or seek: drop what is being done */
+#define URGENT_KEYS (K_B | K_LEFT | K_RIGHT | K_UP | K_DOWN | K_REDRAW)   /* stop, seek, Retro-Go menu: drop what is being done */
 static void poll_keys(void) { g_keys |= input_poll_pressed(); }
 
 static int ring_fill(void) { return (uint16_t)(g_head - g_tail) & (RING_SAMPLES - 1); }
@@ -358,10 +358,30 @@ static void push_pcm(const avi_t *a, const uint8_t *p, uint32_t n_frames)
 /* ================================================================ player */
 
 static bool g_paused_for_menu;
+/* (Re)starts the SAI at the video's rate with the PCM ring attached. Also after the Retro-Go
+ * menu: the firmware may stop or restart the audio DMA there (which drops pcm ownership). */
+static void audio_attach(void)
+{
+    odroid_audio_init((int)g_out_rate);
+    uint32_t half = g_out_rate / 60;
+    if (half > 1000) half = 1000;
+    audio_start_playing((uint16_t)half);
+    pcm_attach(g_ring, RING_SAMPLES, &g_head, &g_tail);
+    pcm_audio_enable(1);
+}
+
+static void reload_pending(void);
+static bool g_sound_on;
+
+/* Around PAUSE/SET (Retro-Go menu, volume/brightness shortcuts): the frame buffer is the dialog
+ * background, so the frame waiting to be shown is read again afterwards; the sound pauses
+ * meanwhile and is set up again (the firmware may have stopped or restarted the audio DMA). */
 static void menu_hook(bool entering)
 {
-    /* the Retro-Go menu (PAUSE/SET) opens: silence the ring meanwhile */
     g_paused_for_menu = entering;
+    if (!entering) reload_pending();
+    if (!g_sound_on) return;
+    if (!entering) audio_attach();
     pcm_audio_set(common_emu_sound_get_volume(), entering ? 0 : 1);
 }
 
@@ -427,8 +447,11 @@ static void show_frame(const avi_t *a, const uint8_t *data, bool osd, uint32_t f
     lcd_sleep_while_swap_pending();
     uint16_t *fb = lcd_get_active_buffer();
     if (a->w < FM_W || a->h < FM_H || osd) memset(fb, 0, FM_W * FM_H * 2);
+    /* set the decoder up every time: the firmware (pause menu, sleep...) may have used it */
+    JPEG_DecodeToFrameInit((uint32_t)fm_scratch, YCBCR_SIZE);
     JPEG_DecodeToFrame((uint32_t)data, (uint32_t)fb, (uint16_t)((FM_W - a->w) / 2), (uint16_t)((FM_H - a->h) / 2), 255);
     if (osd) draw_osd(a, frame, paused);
+    fm_overlay_draw();                       /* volume / brightness indicator (PAUSE+D-pad) */
     lcd_swap();
 }
 
@@ -496,9 +519,18 @@ static void try_show(void)
 }
 
 /* the last frame again (pause, OSD, after the Retro-Go menu): read back from the file */
+static void reload_pending(void)
+{
+    if (PL.pending && !rd(PL.a, PL.pend_pos, PL.frame_buf, PL.pend_size)) PL.pending = false;
+}
+
 static void redraw_shown(void)
 {
-    if (!PL.shown_size || PL.pending) return;
+    if (PL.pending) {                         /* the next frame is ready: that one, now if paused */
+        if (PL.paused) show_pending();
+        return;
+    }
+    if (!PL.shown_size) return;
     if (rd(PL.a, PL.shown_pos, PL.frame_buf, PL.shown_size))
         show_frame(PL.a, PL.frame_buf, true, PL.shown_frame, PL.paused);
 }
@@ -582,15 +614,11 @@ void play_video(const char *path)
         g_out_rate = rate_supported(a.a_rate) ? a.a_rate : 22050;
         g_rs_step = g_out_rate == a.a_rate ? 0 : (uint32_t)(((uint64_t)a.a_rate << 16) / g_out_rate);
         g_rs_prev = 0;
-        odroid_audio_init((int)g_out_rate);
-        uint32_t half = g_out_rate / 60;
-        if (half > 1000) half = 1000;
-        audio_start_playing((uint16_t)half);
-        pcm_attach(g_ring, RING_SAMPLES, &g_head, &g_tail);
+        audio_attach();
         ring_reset();
-        pcm_audio_enable(1);
     }
-    fm_menu_hook = sound ? menu_hook : NULL;
+    g_sound_on = sound;
+    fm_menu_hook = menu_hook;
 
     PL.base_us = 0;
     PL.tick0 = HAL_GetTick();
@@ -626,6 +654,7 @@ void play_video(const char *path)
         g_keys = 0;
         if (k & K_B) break;
         if (k & K_REDRAW) redraw_shown();             /* back from the Retro-Go menu */
+        if (fm_overlay_expired() && PL.paused) redraw_shown();   /* indicator gone */
         if (k & K_A) {
             if (!PL.paused) { PL.base_us = clock_us(); PL.paused = true; }
             else { PL.paused = false; PL.tick0 = HAL_GetTick(); PL.underrun = false;
@@ -707,6 +736,7 @@ void play_video(const char *path)
     }
 
     fm_menu_hook = NULL;
+    fm_overlay_clear();
     if (sound) {
         pcm_audio_enable(0);
         pcm_audio_set(0, 0);
