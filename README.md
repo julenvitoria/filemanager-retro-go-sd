@@ -311,16 +311,6 @@ starts on firmware without the new functions).
   inflate part of [miniz](https://github.com/richgel999/miniz) (MIT), for JPEG and PNG;
   [minimp3](https://github.com/lieff/minimp3) (CC0) for MP3.
 
-## Test files
-
-A pack of test files for every viewer and player is in the
-[**pruebas** release](https://github.com/julenvitoria/filemanager-retro-go-sd/releases/tag/pruebas) (`pruebas_filemanager_completo.zip`, ~100 MB): images (JPEG, PNG,
-GIF, BMP, `.img` covers), AVI videos (PCM and MP3 sound, 15-24 fps, with a clock and a flash +
-beep every second to check sync), audio (MP3, MP2, WAV in all its variants, FLAC, AIFF) and text
-files. Every file was generated on purpose: there is no third-party material. Unzip it, copy the
-folder to the SD card and open the files from the File Manager; `LEEME.txt` (Spanish) says what
-each one tests and which ones must show a message instead of playing.
-
 ## Status
 
 Tested in the gwemu emulator, with the `external_cores` firmware with and without the change:
