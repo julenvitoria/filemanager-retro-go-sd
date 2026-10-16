@@ -144,7 +144,8 @@ static int wav_open(src_t *s, uint32_t size)
         }
         pos += 8 + len + (len & 1);
     }
-    if (!have_fmt || !s->data_start) return -1;
+    if (!have_fmt) return -1;
+    if (!s->data_start || s->data_end <= s->data_start) return -3;
     if (s->channels < 1 || s->channels > 8 || s->rate < 4000 || s->rate > 192000 || !s->align) return -2;
     if (tag == 1 && (s->bits == 8 || s->bits == 16 || s->bits == 24 || s->bits == 32)) s->wfmt = W_PCM;
     else if (tag == 3 && s->bits == 32) s->wfmt = W_FLOAT;
@@ -314,7 +315,7 @@ static int mp3_open(src_t *s, uint32_t size)
         if (!s->title[0]) latin1(s->title, sizeof s->title, t + 3, 30);
         if (!s->artist[0]) latin1(s->artist, sizeof s->artist, t + 33, 30);
     }
-    if (s->data_end <= s->data_start) return -1;
+    if (s->data_end <= s->data_start + 512) return -3;      /* only tags (and cover art) */
     /* find two consecutive frame headers */
     uint32_t n = s->data_end - s->data_start < IN_SIZE ? s->data_end - s->data_start : IN_SIZE;
     if (!rd_at(s->f, s->data_start, g_in, n)) return -1;
@@ -326,7 +327,13 @@ static int mp3_open(src_t *s, uint32_t size)
         else if (!mp3_hdr(g_in + i + m.bytes, &m2) || m2.hz != m.hz || m2.layer != m.layer) continue;
         break;
     }
-    if (i + 4 > n || !mp3_hdr(g_in + i, &m)) return -1;
+    if (i + 4 > n || !mp3_hdr(g_in + i, &m)) {
+        /* no MP3 frames: an error page saved by a failed download, or another format renamed */
+        uint32_t j = 0;
+        while (j < n && (g_in[j] == ' ' || g_in[j] == '\r' || g_in[j] == '\n' || g_in[j] == '\t' || g_in[j] == 0)) j++;
+        if (j == n || g_in[j] == '<' || s->data_end - s->data_start < 16 * 1024) return -3;
+        return -1;
+    }
     s->data_start += i;
     s->kind = SRC_MP3;
     s->channels = m.ch;
@@ -611,12 +618,21 @@ au_result_t play_audio(const char *path)
     s.f = fopen(path, "rb");
     if (!s.f) { ui_message(name, tr(T_AUD_BROKEN), NULL, NULL, false); return AU_ERROR; }
     uint32_t size = file_size(s.f);
-    uint8_t magic[4] = { 0 };
-    rd_at(s.f, 0, magic, 4);
-    int r = !memcmp(magic, "RIFF", 4) ? wav_open(&s, size) : mp3_open(&s, size);
+    uint8_t magic[12] = { 0 };
+    rd_at(s.f, 0, magic, sizeof magic);
+    /* other formats saved with a playable extension */
+    const char *real = !memcmp(magic, "OggS", 4) ? "OGG" : !memcmp(magic, "fLaC", 4) ? "FLAC" :
+                       !memcmp(magic + 4, "ftyp", 4) ? "M4A/MP4" : !memcmp(magic, "FORM", 4) ? "AIFF" :
+                       !memcmp(magic, "\x30\x26\xB2\x75", 4) ? "WMA" : NULL;
+    int r = real ? -4 : !memcmp(magic, "RIFF", 4) ? wav_open(&s, size) : mp3_open(&s, size);
     if (r) {
         fclose(s.f);
-        ui_message(name, tr(r == -2 ? T_AUD_CODEC : T_AUD_BROKEN), tr(T_AUD_CONVERT), NULL, false);
+        char l1[64];
+        if (r == -4) {
+            snprintf(l1, sizeof l1, "%s: %s", tr(T_AUD_FORMAT), real);
+            ui_message(name, l1, tr(T_AUD_CONVERT), NULL, false);
+        } else if (r == -3) ui_message(name, tr(T_AUD_EMPTY), tr(T_AUD_DOWNLOAD), NULL, false);
+        else ui_message(name, tr(r == -2 ? T_AUD_CODEC : T_AUD_BROKEN), tr(T_AUD_CONVERT), NULL, false);
         return AU_ERROR;
     }
 
