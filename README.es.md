@@ -100,13 +100,12 @@ Es un teclado a pantalla completa con el nombre arriba:
 | Cruceta | Moverse por las teclas |
 | A | Escribir la tecla |
 | B | Borrar el último carácter |
-| TIME | Cambiar entre letras y símbolos |
+| TIME | Cambiar entre minúsculas, mayúsculas y símbolos |
 | GAME | Aceptar |
 | PAUSE | Cancelar |
 
-En la fila de abajo también tiene **Espacio**, **Borrar**, **Mayús**, **OK** y **Cancelar**.
-**Mayús**: una pulsación (verde) pone en mayúsculas solo la siguiente letra; dos (rojo) la dejan
-fija; tres la quitan. No deja aceptar nombres con caracteres que no admite la tarjeta (`\ / : * ? " < > |`).
+En la fila de abajo también tiene **Espacio**, **Borrar**, **abc/ABC**, **OK** y **Cancelar**. No
+deja aceptar nombres con caracteres que no admite la tarjeta (`\ / : * ? " < > |`).
 
 ## 5. El editor de texto
 
