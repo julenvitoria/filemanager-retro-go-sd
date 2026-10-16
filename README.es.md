@@ -251,7 +251,9 @@ artista de las etiquetas ID3 de la canción, o el nombre del archivo.
 
 Cuando un archivo termina (o saltas más allá del final) suena el siguiente archivo de audio de la
 carpeta, así que una carpeta funciona como un álbum. Otros formatos (OGG, Opus, FLAC, M4A/AAC,
-WMA…) y los WAV comprimidos (ADPCM…) dan un aviso; conviértelos con [ffmpeg](https://ffmpeg.org/):
+WMA…) y los WAV comprimidos (ADPCM…) dan un aviso, igual que los archivos sin audio (como una
+descarga fallida que solo guardó las etiquetas y la carátula) y otros formatos renombrados a
+`.mp3`; conviértelos con [ffmpeg](https://ffmpeg.org/):
 
 ```
 ffmpeg -i entrada.flac -c:a libmp3lame -q:a 2 salida.mp3

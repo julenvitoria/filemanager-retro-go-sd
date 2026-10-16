@@ -247,7 +247,8 @@ artist from its ID3 tags, or the file name.
 
 When a file ends (or you skip past its end) the next audio file of the folder plays, so a folder
 works as an album. Other formats (OGG, Opus, FLAC, M4A/AAC, WMA…) and compressed WAV (ADPCM…)
-show a message; convert them with [ffmpeg](https://ffmpeg.org/):
+show a message, as do files that hold no audio (such as a failed download that only kept the
+tags and cover) and other formats renamed to `.mp3`; convert them with [ffmpeg](https://ffmpeg.org/):
 
 ```
 ffmpeg -i input.flac -c:a libmp3lame -q:a 2 output.mp3
