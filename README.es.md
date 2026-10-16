@@ -106,8 +106,7 @@ Es un teclado a pantalla completa con el nombre arriba:
 
 En la fila de abajo también tiene **Espacio**, **Borrar**, **Mayús**, **OK** y **Cancelar**.
 **Mayús**: una pulsación (verde) pone en mayúsculas solo la siguiente letra; dos (rojo) la dejan
-fija; tres la quitan. No
-deja aceptar nombres con caracteres que no admite la tarjeta (`\ / : * ? " < > |`).
+fija; tres la quitan. No deja aceptar nombres con caracteres que no admite la tarjeta (`\ / : * ? " < > |`).
 
 ## 5. El editor de texto
 
