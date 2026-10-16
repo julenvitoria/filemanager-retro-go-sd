@@ -19,6 +19,7 @@
 #include <string.h>
 #include <strings.h>
 #include "fm.h"
+#include "third_party/minimp3/minimp3.h"      /* MP3 sound (the decoder itself is built in audio.c) */
 
 extern void wdog_refresh(void);
 extern uint32_t HAL_GetTick(void);
@@ -39,9 +40,18 @@ void     lcd_swap(void);
 void     lcd_sleep_while_swap_pending(void);
 void    *lcd_get_active_buffer(void);
 
-#define YCBCR_SIZE   (160 * 1024)
+#define YCBCR_SIZE   (116 * 1024)                /* 320x240 4:2:0 = 115200 bytes */
 #define RING_SAMPLES 16384                       /* power of two, 32 KB */
 #define FRAME_MAX    (FM_W * FM_H * 2)           /* the dialog background buffer */
+/* fm_scratch: YCbCr | ring | MP3 decoder state, scratch, one frame of samples, input bytes */
+#define V_OFF_RING   YCBCR_SIZE
+#define V_OFF_DEC    (V_OFF_RING + RING_SAMPLES * 2)
+#define V_OFF_SCR    (V_OFF_DEC + 7 * 1024)       /* sizes checked in audio.c */
+#define V_OFF_PCM    (V_OFF_SCR + 16 * 1024)
+#define V_OFF_ACC    (V_OFF_PCM + MINIMP3_MAX_SAMPLES_PER_FRAME * 2)
+#define V_ACC_SIZE   (FM_SCRATCH_SIZE - V_OFF_ACC)
+_Static_assert(V_ACC_SIZE >= 12 * 1024, "fm_scratch: MP3 input");
+extern uint8_t *fm_mp3_scratch;
 #define CKPT_EVERY   128                         /* seek checkpoint every 128 video frames */
 #define CKPT_MAX     1024                        /* 131072 frames: 2.4 h at 15 fps (then seeks scan) */
 
@@ -58,7 +68,8 @@ typedef struct {
     int vstream, astream;              /* stream numbers in the chunk ids, -1 = none */
     uint32_t vcodec;                   /* fourcc */
     int a_format, a_channels, a_bits;
-    uint32_t a_rate;
+    uint32_t a_rate, a_avg;            /* a_avg: bytes per second (MP3) */
+    bool a_mp3;
     uint32_t movi_start, movi_end;     /* data of the current LIST movi */
     uint32_t idx1_off, idx1_n;         /* legacy index (first RIFF only), 0 = none */
     uint32_t idx1_base;                /* what idx1 offsets are relative to */
@@ -129,7 +140,8 @@ static vres_t avi_open(avi_t *a)
                 uint8_t b[16];
                 if (!rd(a, off + 8, b, 16)) return V_ERROR;
                 a->a_format = le16(b); a->a_channels = le16(b + 2);
-                a->a_rate = le32(b + 4); a->a_bits = le16(b + 14);
+                a->a_rate = le32(b + 4); a->a_avg = le32(b + 8); a->a_bits = le16(b + 14);
+                a->a_mp3 = a->a_format == 0x55 || a->a_format == 0x50;
             }
         }
         off += 8 + ((size + 1) & ~1u);
@@ -211,6 +223,14 @@ static bool next_chunk(avi_t *a, int *kind, uint32_t *size, uint32_t *data)
 }
 
 static uint32_t audio_frame_bytes(const avi_t *a) { return (uint32_t)(a->a_channels * (a->a_bits / 8)); }
+/* audio samples in a chunk of `bytes` (MP3: from the average byte rate) */
+static uint32_t chunk_samples(const avi_t *a, uint32_t bytes)
+{
+    if (a->astream < 0) return 0;
+    if (a->a_mp3) return a->a_avg ? (uint32_t)((uint64_t)bytes * a->a_rate / a->a_avg) : 0;
+    uint32_t afb = a->a_bits ? audio_frame_bytes(a) : 0;
+    return afb ? bytes / afb : 0;
+}
 
 static void ckpt_record(const avi_t *a, uint32_t chunk_pos)
 {
@@ -229,7 +249,7 @@ static bool avi_seek_idx(avi_t *a, uint32_t target, uint32_t first_movi_end)
     if (!a->idx1_off) return false;
     uint8_t *buf = fm_scratch;                     /* the decoder's buffer: free between frames */
     const uint32_t per = 4096 / 16;
-    uint32_t frame = 0, afb = a->astream >= 0 && a->a_bits ? audio_frame_bytes(a) : 0;
+    uint32_t frame = 0;
     uint64_t asamples = 0;
     for (uint32_t i = 0; i < a->idx1_n; i += per) {
         uint32_t n = a->idx1_n - i < per ? a->idx1_n - i : per;
@@ -244,7 +264,7 @@ static bool avi_seek_idx(avi_t *a, uint32_t target, uint32_t first_movi_end)
                     return true;
                 }
                 frame++;
-            } else if (k == 1 && afb) asamples += le32(e + 12) / afb;
+            } else if (k == 1) asamples += chunk_samples(a, le32(e + 12));
         }
         wdog_refresh();
     }
@@ -264,7 +284,6 @@ static void avi_seek(avi_t *a, uint32_t target, uint32_t first_movi_end)
             a->pos = a->movi_start; a->frame = 0; a->asamples = 0; a->movi_end = first_movi_end;
         }
     }
-    uint32_t afb = a->astream >= 0 && a->a_bits ? audio_frame_bytes(a) : 0;
     while (a->frame < target) {
         uint32_t before = a->pos;
         int kind; uint32_t size, data;
@@ -273,7 +292,7 @@ static void avi_seek(avi_t *a, uint32_t target, uint32_t first_movi_end)
             /* the chunk header just consumed starts at data - 8 */
             ckpt_record(a, data - 8);
             a->frame++;
-        } else if (afb) a->asamples += size / afb;
+        } else a->asamples += chunk_samples(a, size);
         (void)before;
         if ((a->frame & 63) == 0) wdog_refresh();
     }
@@ -320,7 +339,35 @@ static inline void ring_put(int16_t s)
 }
 
 static void player_idle(void);
-/* PCM bytes from the file -> mono 16-bit into the ring (waits for room) */
+/* one mono sample into the ring (waits for room); false if a key interrupted */
+static bool push_one(int32_t s)
+{
+    if (!g_rs_step) {
+        while (ring_free() < 1) {
+            wdog_refresh(); poll_keys(); player_idle();
+            if (g_keys & URGENT_KEYS) return false;
+            HAL_Delay(1);
+        }
+        ring_put((int16_t)s);
+        return true;
+    }
+    /* linear resampling to g_out_rate */
+    while (g_rs_phase < 0x10000) {
+        while (ring_free() < 1) {
+            wdog_refresh(); poll_keys(); player_idle();
+            if (g_keys & URGENT_KEYS) return false;
+            HAL_Delay(1);
+        }
+        int32_t v = g_rs_prev + (((s - g_rs_prev) * (int32_t)(g_rs_phase >> 4)) >> 12);
+        ring_put((int16_t)v);
+        g_rs_phase += g_rs_step;
+    }
+    g_rs_phase -= 0x10000;
+    g_rs_prev = s;
+    return true;
+}
+
+/* PCM bytes from the file -> mono 16-bit into the ring */
 static void push_pcm(const avi_t *a, const uint8_t *p, uint32_t n_frames)
 {
     int ch = a->a_channels, bytes = a->a_bits / 8;
@@ -328,31 +375,58 @@ static void push_pcm(const avi_t *a, const uint8_t *p, uint32_t n_frames)
         int32_t s = 0;
         for (int c = 0; c < ch; c++) {
             const uint8_t *q = p + ((size_t)i * ch + c) * bytes;
-            s += bytes == 1 ? ((int)q[0] - 128) << 8 : (int16_t)(q[0] | q[1] << 8);
+            s += bytes == 1 ? ((int)q[0] - 128) * 256 : (int16_t)(q[0] | q[1] << 8);
         }
-        s /= ch;
-        if (!g_rs_step) {
-            while (ring_free() < 1) {
-                wdog_refresh(); poll_keys(); player_idle();
-                if (g_keys & URGENT_KEYS) return;
-                HAL_Delay(1);
-            }
-            ring_put((int16_t)s);
-        } else {
-            /* linear resampling to g_out_rate */
-            while (g_rs_phase < 0x10000) {
-                while (ring_free() < 1) {
-                    wdog_refresh(); poll_keys(); player_idle();
-                    if (g_keys & URGENT_KEYS) return;
-                    HAL_Delay(1);
-                }
-                int32_t v = g_rs_prev + (((s - g_rs_prev) * (int32_t)(g_rs_phase >> 4)) >> 12);
-                ring_put((int16_t)v);
-                g_rs_phase += g_rs_step;
-            }
-            g_rs_phase -= 0x10000;
-            g_rs_prev = s;
-        }
+        if (!push_one(s / ch)) return;
+    }
+}
+
+/* MP3 sound: chunk bytes gather in an input buffer and whole frames are decoded from it. The
+ * decoder only gets a frame when a few more KB follow (or at the end), as it needs the next
+ * frame's header to be sure of the sync. */
+#define MP3_KEEP 4096
+#define V_DEC ((mp3dec_t *)(fm_scratch + V_OFF_DEC))
+#define V_PCM ((int16_t *)(fm_scratch + V_OFF_PCM))
+#define V_ACC (fm_scratch + V_OFF_ACC)
+static uint32_t g_acc_len;
+
+static void mp3_reset(void) { mp3dec_init(V_DEC); g_acc_len = 0; }
+
+int fm_mp3_frame_len(const uint8_t *h);
+
+static void mp3_decode_acc(bool flush)
+{
+    uint32_t at = 0;
+    for (;;) {
+        uint32_t left = g_acc_len - at;
+        if (left < 5) break;
+        /* a whole frame here: decode it now, alone (the picture waits for this sound);
+         * anything else only with plenty of data, so the decoder can find its way */
+        int fl = fm_mp3_frame_len(V_ACC + at);
+        if (fl ? left < (uint32_t)fl : (left < MP3_KEEP && !flush)) break;
+        mp3dec_frame_info_t info;
+        int n = mp3dec_decode_frame(V_DEC, V_ACC + at, fl ? fl : (int)left, V_PCM, &info);
+        if (!info.frame_bytes) break;
+        at += (uint32_t)info.frame_bytes;
+        bool stop = false;
+        for (int i = 0; i < n && !stop; i++)
+            stop = !push_one(info.channels == 2 ? ((int32_t)V_PCM[2 * i] + V_PCM[2 * i + 1]) / 2 : V_PCM[i]);
+        if (stop || (g_keys & URGENT_KEYS)) break;
+    }
+    memmove(V_ACC, V_ACC + at, g_acc_len - at);
+    g_acc_len -= at;
+}
+
+static void mp3_feed(const avi_t *a, uint32_t off, uint32_t size)
+{
+    while (size) {
+        if (g_acc_len == V_ACC_SIZE) g_acc_len = 0;          /* full of something undecodable */
+        uint32_t n = V_ACC_SIZE - g_acc_len;
+        if (n > size) n = size;
+        if (!rd(a, off, V_ACC + g_acc_len, n)) return;
+        g_acc_len += n; off += n; size -= n;
+        mp3_decode_acc(false);
+        if (g_keys & URGENT_KEYS) return;
     }
 }
 
@@ -600,8 +674,9 @@ void play_video(const char *path)
             break;
         }
     }
-    bool sound = a.astream >= 0 && (a.a_format == 1 || a.a_format == 0xFFFE) &&
-                 (a.a_bits == 8 || a.a_bits == 16) && a.a_channels >= 1 && a.a_channels <= 8 && a.a_rate >= 4000;
+    bool sound = a.astream >= 0 && (((a.a_format == 1 || a.a_format == 0xFFFE) &&
+                 (a.a_bits == 8 || a.a_bits == 16) && a.a_channels >= 1 && a.a_channels <= 8 && a.a_rate >= 4000) ||
+                 (a.a_mp3 && a.a_channels >= 1 && a.a_channels <= 2 && a.a_rate >= 8000));
     if (a.astream >= 0 && !sound) {
         char l1[64];
         snprintf(l1, sizeof l1, "%s (0x%04X)", tr(T_VID_NO_AUDIO), a.a_format);
@@ -611,7 +686,9 @@ void play_video(const char *path)
     PL.a = &a;
     PL.sound = sound;
     PL.frame_buf = (uint8_t *)fm_canvas();
-    g_ring = (int16_t *)(fm_scratch + YCBCR_SIZE);
+    g_ring = (int16_t *)(fm_scratch + V_OFF_RING);
+    fm_mp3_scratch = fm_scratch + V_OFF_SCR;
+    mp3_reset();
     g_head = g_tail = 0;
     g_nckpt = 0;
     uint32_t first_movi_end = a.movi_end;
@@ -685,6 +762,7 @@ void play_video(const char *path)
             if (a.total_frames && t >= a.total_frames) t = a.total_frames - 1;
             PL.pending = false;
             if (sound) ring_reset();
+            mp3_reset();
             avi_seek(&a, (uint32_t)t, first_movi_end);
 #ifdef VID_DEBUG
             dbg("seek %ld -> frame %lu asamples %lu pos %lu\n", (long)t, (unsigned long)a.frame, (unsigned long)a.asamples, (unsigned long)a.pos);
@@ -708,17 +786,23 @@ void play_video(const char *path)
         int kind; uint32_t size, data;
         if (!next_chunk(&a, &kind, &size, &data)) {
             /* end: show the last frame, let the sound finish */
+            if (sound && a.a_mp3) mp3_decode_acc(true);
             while (PL.pending && !(g_keys & URGENT_KEYS)) { poll_keys(); try_show(); HAL_Delay(1); wdog_refresh();
                                                           if (sound && ring_fill() == 0 && PL.pending) show_pending(); }
             while (sound && ring_fill() > 0 && !(g_keys & K_B)) { wdog_refresh(); poll_keys(); HAL_Delay(5); }
             break;
         }
         if (kind == 1) {
-            if (!sound || !afb) continue;
+            if (!sound || (!afb && !a.a_mp3)) continue;
             /* wait for room (the pending frame keeps its time meanwhile) */
-            uint32_t need = (uint32_t)((uint64_t)(size / afb) * g_out_rate / a.a_rate) + 2;
+            uint32_t need = (uint32_t)((uint64_t)(chunk_samples(&a, size) + (a.a_mp3 ? 1152 : 0)) * g_out_rate / a.a_rate) + 2;
             if (need > RING_SAMPLES / 2) need = RING_SAMPLES / 2;
             if ((uint32_t)ring_free() < need) { a.pos = save_pos; a.movi_end = save_end; HAL_Delay(1); continue; }
+            if (a.a_mp3) {
+                mp3_feed(&a, data, size);
+                a.asamples += chunk_samples(&a, size);
+                continue;
+            }
             uint8_t *tmp = PL.frame_buf + FRAME_MAX - 16384;   /* frames never reach the buffer's tail */
             uint32_t left = size, off = data;
             while (left) {

@@ -46,11 +46,14 @@ void    *lcd_get_active_buffer(void);
 
 #define MINIMP3_IMPLEMENTATION
 #define MINIMP3_NO_SIMD
-#define MINIMP3_SCRATCH_PTR (fm_scratch + OFF_SCR)
+uint8_t *fm_mp3_scratch;                         /* minimp3's scratch: set by the player using it */
+#define MINIMP3_SCRATCH_PTR (fm_mp3_scratch)
 #include "third_party/minimp3/minimp3.h"
 
 _Static_assert(sizeof(mp3dec_t) <= OFF_SCR - OFF_DEC, "mp3dec_t does not fit");
 _Static_assert(sizeof(mp3dec_scratch_t) <= OFF_IN - OFF_SCR, "minimp3 scratch does not fit");
+/* video.c gives the decoder 7 KB and the scratch 16 KB */
+_Static_assert(sizeof(mp3dec_t) <= 7 * 1024 && sizeof(mp3dec_scratch_t) <= 16 * 1024, "video.c MP3 layout");
 _Static_assert(MINIMP3_MAX_SAMPLES_PER_FRAME * 2 <= PCM_BYTES, "pcm buffer");
 _Static_assert(OFF_END <= FM_SCRATCH_SIZE, "fm_scratch too small");
 _Static_assert(OFF_FCH + 2 * FCH_BYTES <= FM_SCRATCH_SIZE, "fm_scratch too small for FLAC");
@@ -70,8 +73,8 @@ static bool ext_is(const char *name, const char *const *list)
     for (; *list; list++) if (strcasecmp(dot + 1, *list) == 0) return true;
     return false;
 }
-static const char *const PLAYABLE[] = { "wav", "wave", "mp3", "mp2", "mpa", "flac", "fla", NULL };
-static const char *const OTHER[]    = { "ogg", "oga", "opus", "m4a", "aac", "wma", "aif", "aiff",
+static const char *const PLAYABLE[] = { "wav", "wave", "mp3", "mp2", "mpa", "flac", "fla", "aif", "aiff", "aifc", NULL };
+static const char *const OTHER[]    = { "ogg", "oga", "opus", "m4a", "aac", "wma",
                                         "ape", "wv", "mid", "midi", "mod", "xm", "s3m", "it", "amr", "ac3", NULL };
 
 bool is_audio_ext(const char *name)
@@ -83,7 +86,7 @@ bool is_audio_ext(const char *name)
 /* ---------------------------------------------------------------- source */
 
 enum { SRC_WAV, SRC_MP3, SRC_FLAC };
-enum { W_PCM, W_FLOAT, W_ALAW, W_ULAW };
+enum { W_PCM, W_FLOAT, W_ALAW, W_ULAW, W_IMA, W_MSADPCM };
 
 typedef struct {
     FILE *f;
@@ -92,9 +95,11 @@ typedef struct {
     uint32_t rate;                           /* 0 until known (MP3: first frame) */
     int channels;
     uint32_t total_ms;                       /* 0 = unknown */
-    /* WAV */
+    /* WAV / AIFF */
     int wfmt, bits;
-    uint32_t align;
+    uint32_t align;                          /* bytes per block (PCM: per sample frame) */
+    uint32_t spb;                            /* samples per block (PCM: 1) */
+    bool be, s8;                             /* AIFF: big-endian, signed 8-bit */
     /* MP3 */
     uint32_t avg_bps;                        /* bytes per second (seeking without a TOC) */
     uint8_t toc[100]; bool has_toc;
@@ -145,6 +150,7 @@ static int wav_open(src_t *s, uint32_t size)
             s->rate = le32(h + 4);
             s->align = le16(h + 12);
             s->bits = le16(h + 14);
+            s->spb = n >= 20 ? le16(h + 18) : 0;                    /* ADPCM: samples per block */
             if (tag == 0xFFFE && n >= 26) tag = le16(h + 24);      /* WAVE_FORMAT_EXTENSIBLE */
             have_fmt = true;
         } else if (!memcmp(h, "data", 4)) {
@@ -162,11 +168,144 @@ static int wav_open(src_t *s, uint32_t size)
     else if (tag == 3 && s->bits == 32) s->wfmt = W_FLOAT;
     else if (tag == 6 && s->bits == 8) s->wfmt = W_ALAW;
     else if (tag == 7 && s->bits == 8) s->wfmt = W_ULAW;
-    else return -2;
-    if (s->align != (uint32_t)(s->channels * s->bits / 8)) return -2;
+    else if ((tag == 0x11 || tag == 2) && s->bits == 4 && s->channels <= 2) {
+        s->wfmt = tag == 0x11 ? W_IMA : W_MSADPCM;
+        uint32_t hdr = (tag == 0x11 ? 4u : 7u) * (uint32_t)s->channels;
+        if (s->align <= hdr) return -2;
+        uint32_t spb = (s->align - hdr) * 2 / (uint32_t)s->channels + (tag == 0x11 ? 1 : 2);
+        if (!s->spb || s->spb > spb) s->spb = spb;
+        if (s->spb > PCM_BYTES / 2 || s->align > IN_SIZE) return -2;
+    } else return -2;
+    if (s->wfmt < W_IMA) {
+        if (s->align != (uint32_t)(s->channels * s->bits / 8)) return -2;
+        s->spb = 1;
+    }
+    s->kind = SRC_WAV;
+    s->total_ms = (uint32_t)((uint64_t)(s->data_end - s->data_start) / s->align * s->spb * 1000 / s->rate);
+    return 0;
+}
+
+/* ---- AIFF / AIFC (big-endian PCM, "sowt" little-endian, "fl32" float) */
+
+static int aiff_open(src_t *s, uint32_t size)
+{
+    uint8_t h[26];
+    if (!rd_at(s->f, 0, h, 12) || memcmp(h, "FORM", 4) || (memcmp(h + 8, "AIFF", 4) && memcmp(h + 8, "AIFC", 4))) return -1;
+    bool comm = false;
+    uint32_t pos = 12;
+    while (pos + 8 <= size) {
+        if (!rd_at(s->f, pos, h, 8)) return -1;
+        uint32_t len = be32(h + 4);
+        if (!memcmp(h, "COMM", 4)) {
+            uint32_t n = len < 22 ? len : 22;
+            if (n < 18 || !rd_at(s->f, pos + 8, h, n)) return -1;
+            s->channels = h[0] << 8 | h[1];
+            s->bits = h[6] << 8 | h[7];
+            int e = ((h[8] & 0x7F) << 8 | h[9]) - 16383;             /* 80-bit float sample rate */
+            uint64_t m = (uint64_t)be32(h + 10) << 32 | be32(h + 14);
+            s->rate = e >= 0 && e < 63 ? (uint32_t)(m >> (63 - e)) : 0;
+            s->wfmt = W_PCM; s->be = true; s->s8 = true;
+            if (n >= 22) {
+                if (!memcmp(h + 18, "sowt", 4)) s->be = false;
+                else if (!memcmp(h + 18, "fl32", 4) || !memcmp(h + 18, "FL32", 4)) s->wfmt = W_FLOAT;
+                else if (memcmp(h + 18, "NONE", 4) && memcmp(h + 18, "twos", 4)) return -2;
+            }
+            comm = true;
+        } else if (!memcmp(h, "SSND", 4)) {
+            uint8_t o[4];
+            if (!comm || len < 8 || !rd_at(s->f, pos + 8, o, 4)) return -1;
+            s->data_start = pos + 16 + be32(o);
+            s->data_end = pos + 8 + len > size ? size : pos + 8 + len;
+            break;
+        }
+        pos += 8 + len + (len & 1);
+    }
+    if (!comm) return -1;
+    if (!s->data_start || s->data_end <= s->data_start) return -3;
+    if (s->channels < 1 || s->channels > 8 || s->rate < 4000 || s->rate > 192000) return -2;
+    if (s->wfmt == W_FLOAT ? s->bits != 32 : (s->bits != 8 && s->bits != 16 && s->bits != 24 && s->bits != 32)) return -2;
+    s->align = (uint32_t)(s->channels * s->bits / 8);
+    s->spb = 1;
     s->kind = SRC_WAV;
     s->total_ms = (uint32_t)((uint64_t)(s->data_end - s->data_start) / s->align * 1000 / s->rate);
     return 0;
+}
+
+/* ---- ADPCM */
+
+static const int16_t IMA_STEP[89] = {
+    7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97,
+    107, 118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
+    876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871,
+    5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899, 15289, 16818, 18500, 20350, 22385, 24623,
+    27086, 29794, 32767 };
+static const int8_t IMA_IDX[16] = { -1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4, 6, 8 };
+
+static int32_t ima_nib(int32_t *pred, int *idx, int nib)
+{
+    int step = IMA_STEP[*idx], diff = ((2 * (nib & 7) + 1) * step) >> 3;   /* as ffmpeg decodes it */
+    *pred += (nib & 8) ? -diff : diff;
+    if (*pred > 32767) *pred = 32767; else if (*pred < -32768) *pred = -32768;
+    *idx += IMA_IDX[nib];
+    if (*idx < 0) *idx = 0; else if (*idx > 88) *idx = 88;
+    return *pred;
+}
+
+/* one IMA block (n bytes) -> mono samples at out; returns the count */
+static int ima_block(const uint8_t *b, uint32_t n, int ch, int16_t *out, uint32_t max)
+{
+    int32_t pred[2]; int idx[2];
+    if (n < 4u * (uint32_t)ch) return 0;
+    for (int c = 0; c < ch; c++) {
+        pred[c] = (int16_t)le16(b + 4 * c);
+        idx[c] = b[4 * c + 2] > 88 ? 88 : b[4 * c + 2];
+    }
+    uint32_t o = 0;
+    out[o++] = (int16_t)(ch == 1 ? pred[0] : (pred[0] + pred[1]) / 2);
+    const uint8_t *p = b + 4 * ch, *e = b + n;
+    while (p + 4 * ch <= e && o + 8 <= max) {
+        int32_t v[2][8];
+        for (int c = 0; c < ch; c++, p += 4)
+            for (int k = 0; k < 4; k++) {
+                v[c][2 * k]     = ima_nib(&pred[c], &idx[c], p[k] & 15);
+                v[c][2 * k + 1] = ima_nib(&pred[c], &idx[c], p[k] >> 4);
+            }
+        for (int k = 0; k < 8; k++) out[o++] = (int16_t)(ch == 1 ? v[0][k] : (v[0][k] + v[1][k]) / 2);
+    }
+    return (int)o;
+}
+
+static const int16_t MS_ADAPT[16] = { 230, 230, 230, 230, 307, 409, 512, 614, 768, 614, 512, 409, 307, 230, 230, 230 };
+static const int16_t MS_C1[7] = { 256, 512, 0, 192, 240, 460, 392 }, MS_C2[7] = { 0, -256, 0, 64, 0, -208, -232 };
+
+static int ms_block(const uint8_t *b, uint32_t n, int ch, int16_t *out, uint32_t max)
+{
+    int c1[2], c2[2]; int32_t delta[2], s1[2], s2[2];
+    if (n < 7u * (uint32_t)ch) return 0;
+    for (int c = 0; c < ch; c++) {
+        int k = b[c] > 6 ? 6 : b[c];
+        c1[c] = MS_C1[k]; c2[c] = MS_C2[k];
+        delta[c] = (int16_t)le16(b + ch + 2 * c);
+        s1[c] = (int16_t)le16(b + 3 * ch + 2 * c);
+        s2[c] = (int16_t)le16(b + 5 * ch + 2 * c);
+    }
+    uint32_t o = 0;
+    out[o++] = (int16_t)(ch == 1 ? s2[0] : (s2[0] + s2[1]) / 2);
+    out[o++] = (int16_t)(ch == 1 ? s1[0] : (s1[0] + s1[1]) / 2);
+    int32_t pair = 0; int got = 0;
+    for (const uint8_t *p = b + 7 * ch; p < b + n && o < max; p++)
+        for (int h = 0; h < 2; h++) {
+            int nib = h ? (*p & 15) : (*p >> 4);
+            int c = ch == 2 ? h : 0;
+            int32_t pred = (s1[c] * c1[c] + s2[c] * c2[c]) / 256 + (nib >= 8 ? nib - 16 : nib) * delta[c];
+            if (pred > 32767) pred = 32767; else if (pred < -32768) pred = -32768;
+            s2[c] = s1[c]; s1[c] = pred;
+            delta[c] = MS_ADAPT[nib] * delta[c] / 256;
+            if (delta[c] < 16) delta[c] = 16;
+            if (ch == 1) out[o++] = (int16_t)pred;
+            else { pair += pred; if (++got == 2) { out[o++] = (int16_t)(pair / 2); pair = 0; got = 0; } }
+        }
+    return (int)o;
 }
 
 static int16_t alaw(uint8_t v)
@@ -187,7 +326,8 @@ static int32_t wav_sample(const src_t *s, const uint8_t *q)
 {
     switch (s->wfmt) {
         case W_FLOAT: {
-            float f; memcpy(&f, q, 4);
+            float f;
+            if (s->be) { uint32_t u = be32(q); memcpy(&f, &u, 4); } else memcpy(&f, q, 4);
             if (f != f) return 0;
             if (f > 1.0f) f = 1.0f; else if (f < -1.0f) f = -1.0f;
             return (int32_t)(f * 32767.0f);
@@ -195,8 +335,12 @@ static int32_t wav_sample(const src_t *s, const uint8_t *q)
         case W_ALAW: return alaw(q[0]);
         case W_ULAW: return ulaw(q[0]);
         default:
+            if (s->be) switch (s->bits) {                 /* AIFF: the top byte comes first */
+                case 8:  return (int8_t)q[0] * 256;
+                default: return (int16_t)(q[0] << 8 | q[1]);
+            }
             switch (s->bits) {
-                case 8:  return ((int)q[0] - 128) * 256;
+                case 8:  return s->s8 ? (int8_t)q[0] * 256 : ((int)q[0] - 128) * 256;
                 case 16: return (int16_t)le16(q);
                 case 24: return (int16_t)(q[1] | q[2] << 8);
                 default: return (int16_t)(q[2] | q[3] << 8);
@@ -208,6 +352,23 @@ static int32_t wav_sample(const src_t *s, const uint8_t *q)
 static int wav_read(src_t *s, uint32_t *pos)
 {
     if (*pos >= s->data_end) return 0;
+    if (s->wfmt >= W_IMA) {                               /* ADPCM: whole blocks */
+        uint32_t blocks = (PCM_BYTES / 2) / s->spb;
+        if (blocks * s->align > IN_SIZE) blocks = IN_SIZE / s->align;
+        if (!blocks) blocks = 1;
+        uint32_t bytes = blocks * s->align;
+        if (bytes > s->data_end - *pos) bytes = s->data_end - *pos;
+        if (!rd_at(s->f, *pos, g_in, bytes)) return 0;
+        *pos += bytes;
+        uint32_t o = 0;
+        for (uint32_t b = 0; b < bytes; b += s->align) {
+            uint32_t n = bytes - b < s->align ? bytes - b : s->align;
+            uint32_t want = s->spb < PCM_BYTES / 2 - o ? s->spb : PCM_BYTES / 2 - o;
+            o += (uint32_t)(s->wfmt == W_IMA ? ima_block(g_in + b, n, s->channels, g_pcm + o, want)
+                                             : ms_block(g_in + b, n, s->channels, g_pcm + o, want));
+        }
+        return (int)o;
+    }
     uint32_t frames = PCM_BYTES / 2;
     if (frames * s->align > IN_SIZE) frames = IN_SIZE / s->align;
     uint32_t left = (s->data_end - *pos) / s->align;
@@ -313,6 +474,13 @@ static bool mp3_hdr(const uint8_t *h, mhdr_t *m)
         m->samples = (m->layer == 3 && m->ver != 1) ? 576 : 1152;
     }
     return m->bytes > 4;
+}
+
+/* length of the MP3 frame whose header is at h (0 = not a header); used by video.c */
+int fm_mp3_frame_len(const uint8_t *h)
+{
+    mhdr_t m;
+    return mp3_hdr(h, &m) ? m.bytes : 0;
 }
 
 /* first frame after the tags: rate, length (Xing/Info/VBRI or the bitrate) */
@@ -558,7 +726,8 @@ static void draw(void)
         ui_fill(x0, FM_H - 9, w, 4, 0x4208);
         ui_fill(x0, FM_H - 9, (int)((uint64_t)w * cur / tot), 4, C_SEL_BG);
     }
-    snprintf(line, sizeof line, "%s  %lu Hz  %s", s->kind == SRC_MP3 ? "MP3" : s->kind == SRC_FLAC ? "FLAC" : "WAV", (unsigned long)s->rate,
+    snprintf(line, sizeof line, "%s  %lu Hz  %s", s->kind == SRC_MP3 ? "MP3" : s->kind == SRC_FLAC ? "FLAC" : s->s8 ? "AIFF" :
+             s->wfmt >= W_IMA ? "ADPCM" : "WAV", (unsigned long)s->rate,
              s->channels == 1 ? "mono" : "stereo");
     ui_text_px((FM_W - (int)strlen(line) * 8) / 2, FM_H - 28, line, C_DIM, C_BG);
 
@@ -629,10 +798,10 @@ static void seek_to(src_t *s, uint32_t *pos, int64_t ms)
     if (ms < 0) ms = 0;
     if (s->total_ms && ms > s->total_ms) ms = s->total_ms;
     if (s->kind == SRC_WAV) {
-        uint64_t frame = (uint64_t)ms * s->rate / 1000;
-        *pos = s->data_start + (uint32_t)(frame * s->align);
+        uint64_t block = (uint64_t)ms * s->rate / 1000 / s->spb;
+        *pos = s->data_start + (uint32_t)(block * s->align);
         if (*pos > s->data_end) *pos = s->data_end;
-        ms = (int64_t)(frame * 1000 / s->rate);
+        ms = (int64_t)(block * s->spb * 1000 / s->rate);
     } else if (s->kind == SRC_FLAC) {
         uint32_t bytes = s->data_end - s->data_start;
         uint32_t off = s->total_ms ? (uint32_t)((uint64_t)bytes * (uint64_t)ms / s->total_ms) : 0;
@@ -675,10 +844,11 @@ au_result_t play_audio(const char *path)
     rd_at(s.f, 0, magic, sizeof magic);
     /* other formats saved with a playable extension */
     const char *real = !memcmp(magic, "OggS", 4) ? "OGG" :
-                       !memcmp(magic + 4, "ftyp", 4) ? "M4A/MP4" : !memcmp(magic, "FORM", 4) ? "AIFF" :
+                       !memcmp(magic + 4, "ftyp", 4) ? "M4A/MP4" :
                        !memcmp(magic, "\x30\x26\xB2\x75", 4) ? "WMA" : NULL;
     bool flac = !memcmp(magic, "fLaC", 4) || (!memcmp(magic, "ID3", 3) && ext_is(path, (const char *const[]){ "flac", "fla", NULL }));
-    int r = real ? -4 : flac ? flac_open_src(&s, size) : !memcmp(magic, "RIFF", 4) ? wav_open(&s, size) : mp3_open(&s, size);
+    int r = real ? -4 : flac ? flac_open_src(&s, size) : !memcmp(magic, "RIFF", 4) ? wav_open(&s, size) :
+            !memcmp(magic, "FORM", 4) ? aiff_open(&s, size) : mp3_open(&s, size);
     if (r) {
         fclose(s.f);
         char l1[64];
@@ -697,6 +867,7 @@ au_result_t play_audio(const char *path)
     g_head = g_tail = 0;
     g_out_rate = 0;
     uint32_t pos = s.data_start;
+    fm_mp3_scratch = fm_scratch + OFF_SCR;
     if (s.kind == SRC_MP3) mp3_restart(&s, pos);
     if (s.kind == SRC_FLAC) flac_restart(&s, pos);
     set_rate(s.rate);

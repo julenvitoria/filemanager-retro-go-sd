@@ -13,8 +13,8 @@ from the console itself: copy, move, rename, delete, view and edit files.
 - **Multi-select**: actions apply to everything selected.
 - **View** text files, hex dumps and **images**: JPEG, PNG, GIF (animated too) and BMP (also the
   firmware's screenshots).
-- **Play videos**: AVI with Motion-JPEG video and PCM sound (convert yours with one ffmpeg command).
-- **Play music**: MP3 (also MP2), FLAC and WAV, going on with the next file of the folder.
+- **Play videos**: AVI with Motion-JPEG video and PCM or MP3 sound (convert yours with one ffmpeg command).
+- **Play music**: MP3 (also MP2), FLAC, WAV and AIFF, going on with the next file of the folder.
 - **Edit text** (`.txt`, `.cfg`, `.ini`…) with an on-screen keyboard.
 - **Hex-edit** any file, with a hex keypad.
 - **Information** about files and folders, and about the **SD card** (capacity, used, free).
@@ -52,7 +52,7 @@ Pressing **A** on a file opens:
 - `.jpg`, `.png`, `.gif`, `.bmp` → image viewer; also the `.img` cover thumbnails of Retro-Go
   (`/covers/...`), recognised by their content (other `.img` files, such as disk images, open in hex);
 - `.avi` → video player (`.mp4`, `.mkv`, `.mov`… show how to convert them);
-- `.mp3`, `.mp2`, `.flac`, `.wav` → audio player (`.ogg`, `.m4a`… show how to convert them);
+- `.mp3`, `.mp2`, `.flac`, `.wav`, `.aiff` → audio player (`.ogg`, `.m4a`… show how to convert them);
 - `.txt`, `.cfg`, `.ini`, `.log`, `.json`, `.xml`, `.csv`, `.md`, `.c`, `.h`… → text viewer;
 - anything else → hex viewer.
 
@@ -196,7 +196,7 @@ are enlarged by a whole factor so they stay sharp).
 
 ## 8. The video player
 
-Plays **AVI files with Motion-JPEG video (at most 320x240) and PCM sound**. Every frame is decoded
+Plays **AVI files with Motion-JPEG video (at most 320x240) and PCM or MP3 sound**. Every frame is decoded
 by the console's hardware JPEG decoder, and the picture follows the sound. The file name shows at
 the top for the first 3 seconds.
 
@@ -222,13 +222,15 @@ The `-pix_fmt yuvj420p` part matters: the console's JPEG decoder only handles co
 shape) video at 15 frames per second with mono
 22 kHz sound. `-q:v` sets the quality (2 = best and biggest, 10 = smallest); `fps=15` can be
 raised if the card reads fast enough. A 4-minute clip takes about 30-40 MB. Audio in other PCM
-rates is converted while playing; compressed audio (MP3, AAC…) plays without sound.
+rates is converted while playing. MP3 sound works too and makes the files smaller: use
+`-c:a libmp3lame -b:a 96k -ar 22050 -ac 1` instead of the `pcm_s16le` part. Other compressed sound
+(AAC…) plays without sound.
 
 ## 9. The audio player
 
 Plays **MP3** (MPEG-1/2/2.5 layer 3, CBR or VBR; also layer 1 and 2, `.mp2`), **FLAC** (up to 24
-bits, any compression level) and **WAV** (PCM 8, 16, 24 and 32 bits, 32-bit float, A-law and
-µ-law), mono or stereo, at any sample rate. The
+bits, any compression level) **WAV** (PCM 8, 16, 24 and 32 bits, 32-bit float, A-law, µ-law, IMA and Microsoft ADPCM) and
+**AIFF/AIFC**, mono or stereo, at any sample rate. The
 console has one speaker, so stereo is mixed to mono.
 
 The screen shows the waveform being played, the time and length with a progress bar, and the
@@ -247,8 +249,7 @@ artist from its tags (ID3 or FLAC), or the file name.
 | PAUSE/SET + D-pad | Volume / brightness, with the indicator |
 
 When a file ends (or you skip past its end) the next audio file of the folder plays, so a folder
-works as an album. Other formats (OGG, Opus, M4A/AAC, WMA…) and compressed WAV (ADPCM…)
-show a message, as do files that hold no audio (such as a failed download that only kept the
+works as an album. Other formats (OGG, Opus, M4A/AAC, WMA…) show a message, as do files that hold no audio (such as a failed download that only kept the
 tags and cover) and other formats renamed to `.mp3`; convert them with [ffmpeg](https://ffmpeg.org/):
 
 ```
@@ -324,7 +325,8 @@ Tested in the gwemu emulator, with the `external_cores` firmware with and withou
 - audio player: MP3 CBR/VBR/mono/22-48 kHz, MP2, WAV 8/16/24-bit, float, A-law, µ-law, FLAC
   16/24-bit, mono, every stereo mode and 8192-sample blocks (all checked sample by sample
   against ffmpeg), ID3v1/v2 titles, seeking, pause, next/previous and
-  end of file, the Retro-Go menu and the volume indicator, and the ADPCM/OGG messages;
+  end of file, the Retro-Go menu and the volume indicator, the OGG message; IMA/MS ADPCM WAV
+  and AIFF/AIFC (also checked against ffmpeg); AVI video with MP3 sound;
 - copying folders with subfolders: byte-identical result;
 - moving (instant, and by copy + delete);
 - renaming with the keyboard;

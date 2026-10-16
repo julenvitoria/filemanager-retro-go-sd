@@ -13,9 +13,9 @@ tarjeta SD desde la propia consola: copiar, mover, renombrar, borrar, ver y edit
 - **Selección múltiple**: las acciones se aplican a todo lo seleccionado.
 - **Ver** archivos de texto, en hexadecimal e **imágenes**: JPEG, PNG, GIF (también animados) y BMP
   (también las capturas del firmware).
-- **Ver vídeos**: AVI con vídeo Motion-JPEG y sonido PCM (los tuyos se convierten con un comando de
+- **Ver vídeos**: AVI con vídeo Motion-JPEG y sonido PCM o MP3 (los tuyos se convierten con un comando de
   ffmpeg).
-- **Escuchar música**: MP3 (también MP2), FLAC y WAV, siguiendo con el siguiente archivo de la carpeta.
+- **Escuchar música**: MP3 (también MP2), FLAC, WAV y AIFF, siguiendo con el siguiente archivo de la carpeta.
 - **Editar texto** (`.txt`, `.cfg`, `.ini`…) con un teclado en pantalla.
 - **Editar en hexadecimal** cualquier archivo, con un teclado hexadecimal.
 - **Información** de archivos y carpetas, y de la **tarjeta SD** (capacidad, usado, libre).
@@ -53,7 +53,7 @@ Al pulsar **A** sobre un archivo:
 - `.jpg`, `.png`, `.gif`, `.bmp` → visor de imágenes; también las carátulas `.img` de Retro-Go
   (`/covers/...`), reconocidas por su contenido (otros `.img`, como imágenes de disco, se abren en hex);
 - `.avi` → reproductor de vídeo (`.mp4`, `.mkv`, `.mov`… explican cómo convertirlos);
-- `.mp3`, `.mp2`, `.flac`, `.wav` → reproductor de audio (`.ogg`, `.m4a`… explican cómo convertirlos);
+- `.mp3`, `.mp2`, `.flac`, `.wav`, `.aiff` → reproductor de audio (`.ogg`, `.m4a`… explican cómo convertirlos);
 - `.txt`, `.cfg`, `.ini`, `.log`, `.json`, `.xml`, `.csv`, `.md`, `.c`, `.h`… → visor de texto;
 - cualquier otro → visor hexadecimal.
 
@@ -199,7 +199,7 @@ Muestra imágenes **JPEG**, **PNG**, **GIF** y **BMP** de cualquier tamaño, aju
 
 ## 8. El reproductor de vídeo
 
-Reproduce **archivos AVI con vídeo Motion-JPEG (como mucho 320x240) y sonido PCM**. Cada fotograma
+Reproduce **archivos AVI con vídeo Motion-JPEG (como mucho 320x240) y sonido PCM o MP3**. Cada fotograma
 lo decodifica el chip JPEG de la consola, y la imagen va sincronizada con el sonido. El nombre del
 archivo sale arriba durante los 3 primeros segundos.
 
@@ -225,14 +225,15 @@ fotogramas en color 4:2:0 (los MJPEG 4:2:2, 4:4:4 o en grises dan un aviso). As�
 320x240 (o menos, manteniendo la forma) a 15 fotogramas por segundo con sonido
 mono a 22 kHz. `-q:v` es la calidad (2 = la mejor y más grande, 10 = la más pequeña); `fps=15` se
 puede subir si la tarjeta lee lo bastante rápido. Un clip de 4 minutos ocupa unos 30-40 MB. El
-audio PCM a otras frecuencias se convierte al reproducir; el comprimido (MP3, AAC…) se reproduce sin
-sonido.
+audio PCM a otras frecuencias se convierte al reproducir. El sonido MP3 también funciona y hace los
+archivos más pequeños: usa `-c:a libmp3lame -b:a 96k -ar 22050 -ac 1` en lugar de la parte de
+`pcm_s16le`. Otro sonido comprimido (AAC…) se reproduce sin sonido.
 
 ## 9. El reproductor de audio
 
 Reproduce **MP3** (MPEG-1/2/2.5 capa 3, CBR o VBR; también capas 1 y 2, `.mp2`), **FLAC** (hasta 24
-bits, cualquier nivel de compresión) y **WAV** (PCM de 8, 16, 24 y 32 bits, coma flotante de 32
-bits, A-law y µ-law), mono o estéreo, a cualquier frecuencia. La consola tiene un solo altavoz, así que el estéreo se mezcla a mono.
+bits, cualquier nivel de compresión) **WAV** (PCM de 8, 16, 24 y 32 bits, coma flotante de 32
+bits, A-law, µ-law, ADPCM IMA y de Microsoft) y **AIFF/AIFC**, mono o estéreo, a cualquier frecuencia. La consola tiene un solo altavoz, así que el estéreo se mezcla a mono.
 
 En pantalla salen la onda que está sonando, el tiempo y la duración con una barra de progreso, y
 el formato. Durante los 3 primeros segundos (y en pausa) una barra arriba muestra el título y el
@@ -251,7 +252,7 @@ artista de las etiquetas de la canción (ID3 o FLAC), o el nombre del archivo.
 
 Cuando un archivo termina (o saltas más allá del final) suena el siguiente archivo de audio de la
 carpeta, así que una carpeta funciona como un álbum. Otros formatos (OGG, Opus, M4A/AAC,
-WMA…) y los WAV comprimidos (ADPCM…) dan un aviso, igual que los archivos sin audio (como una
+WMA…) dan un aviso, igual que los archivos sin audio (como una
 descarga fallida que solo guardó las etiquetas y la carátula) y otros formatos renombrados a
 `.mp3`; conviértelos con [ffmpeg](https://ffmpeg.org/):
 
@@ -331,7 +332,8 @@ Probado en el emulador gwemu, con el firmware `external_cores` con el cambio y s
   µ-law, FLAC de 16/24 bits, mono, todos los modos estéreo y bloques de 8192 muestras (todos
   comparados muestra a muestra con ffmpeg), títulos ID3v1/v2, saltos, pausa,
   siguiente/anterior y final de archivo, el menú de Retro-Go y el indicador de volumen, y los
-  avisos de ADPCM/OGG;
+  avisos de OGG; WAV ADPCM IMA/MS y AIFF/AIFC (también comparados con ffmpeg); vídeo AVI con
+  sonido MP3;
 - copia de carpetas con subcarpetas: resultado idéntico byte a byte;
 - mover (instantáneo y por copia + borrado);
 - renombrar con el teclado;
