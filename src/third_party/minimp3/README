@@ -1,0 +1,5 @@
+minimp3 by lieff — CC0 1.0 (see LICENSE).
+https://github.com/lieff/minimp3 (commit ea99364f61c14656440e8d77e9c233ccf3124633)
+
+G&W change: with MINIMP3_SCRATCH_PTR defined, mp3dec_decode_frame() uses the scratch area
+(mp3dec_scratch_t, ~16 KB) at that address instead of a local variable on the stack.

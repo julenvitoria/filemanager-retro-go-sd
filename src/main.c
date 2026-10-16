@@ -99,6 +99,10 @@ static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_VID_SIZE]       = S("Video too big", "Vídeo demasiado grande"),
     [T_VID_NO_AUDIO]   = S("Audio not supported: no sound", "Audio no soportado: sin sonido"),
     [T_VID_SUBSAMPLING]= S("MJPEG must be colour 4:2:0", "El MJPEG debe ser en color 4:2:0"),
+    [T_AUD_FORMAT]     = S("Audio format not supported", "Formato de audio no soportado"),
+    [T_AUD_CONVERT]    = S("Convert it to MP3 or WAV (see README)", "Conviértelo a MP3 o WAV (ver README)"),
+    [T_AUD_CODEC]      = S("WAV encoding not supported", "Codificación WAV no soportada"),
+    [T_AUD_BROKEN]     = S("Cannot play this file", "No se puede reproducir el archivo"),
     [T_CANCELLED]      = S("Cancelled", "Cancelado"),
     [T_CLEAR_CLIP]     = S("Clear clipboard", "Vaciar portapapeles"),
     [T_PATH]           = S("Path", "Ruta"),
@@ -191,6 +195,30 @@ void ui_text(int col, int row, const char *s, uint16_t fg, uint16_t bg)
     buf[FM_COLS - col] = '\0';
     if (buf[0])
         odroid_overlay_draw_text((uint16_t)(col * 8), (uint16_t)(row * 8), 0, buf, fg, bg);
+}
+
+void ui_banner(const char *l1, const char *l2)
+{
+    char buf[FM_COLS * 4 + 1], line[FM_COLS + 1];
+    ascii_fold(buf, sizeof buf, l1 ? l1 : "");
+    int n = (int)strlen(buf), lines = n > FM_COLS ? 2 : 1;
+    int extra = (l2 && l2[0]) ? 1 : 0;
+    ui_fill(0, 0, FM_W, (lines + extra) * 10 + 4, C_BAR);
+    for (int i = 0; i < lines; i++) {
+        int off = i * FM_COLS, len = n - off;
+        if (len > FM_COLS) len = FM_COLS;
+        memcpy(line, buf + off, (size_t)len);
+        line[len] = 0;
+        if (i == 1 && n > 2 * FM_COLS) memcpy(line + FM_COLS - 3, "...", 4);
+        int x = (FM_W - len * 8) / 2;
+        odroid_overlay_draw_text((uint16_t)x, (uint16_t)(3 + i * 10), 0, line, C_BAR_TEXT, C_BAR);
+    }
+    if (extra) {
+        ascii_fold(buf, sizeof buf, l2);
+        buf[FM_COLS] = 0;
+        int x = (FM_W - (int)strlen(buf) * 8) / 2;
+        odroid_overlay_draw_text((uint16_t)x, (uint16_t)(3 + lines * 10), 0, buf, C_DIR, C_BAR);
+    }
 }
 
 void ui_text_w(int col, int row, int width, const char *s, uint16_t fg, uint16_t bg)
@@ -794,6 +822,25 @@ static void view_images(void)
     }
 }
 
+/* Audio player over the current folder: at the end of a file (or TIME / GAME) it goes on with
+ * the next / previous audio file. */
+static void play_audios(void)
+{
+    for (;;) {
+        char p[FM_PATH_MAX];
+        path_join(p, g_cwd, ename(&g_ent[g_cursor]));
+        au_result_t r = play_audio(p);
+        if (r == AU_STOP || r == AU_ERROR) break;
+        int d = r == AU_PREV ? -1 : 1, j = -1;
+        for (int i = g_cursor + d; i >= 0 && i < g_count; i += d)
+            if (!g_ent[i].dir && is_audio_ext(ename(&g_ent[i]))) { j = i; break; }
+        if (j < 0) break;
+        g_cursor = j;
+    }
+    if (g_cursor < g_top) g_top = g_cursor;
+    if (g_cursor >= g_top + LIST_ROWS) g_top = g_cursor - LIST_ROWS + 1;
+}
+
 static void open_entry(bool force_text, bool force_hex)
 {
     if (!g_count) return;
@@ -813,6 +860,7 @@ static void open_entry(bool force_text, bool force_hex)
     else if (force_text) view_text(p);
     else if (is_image_file(p)) { view_images(); return; }
     else if (is_video_ext(p)) play_video(p);
+    else if (is_audio_ext(p)) { play_audios(); return; }
     else if (is_text_ext(p)) view_text(p);
     else view_hex(p);
     load_dir(name);          /* the file may have been edited: refresh size and date */

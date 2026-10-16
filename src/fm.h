@@ -40,6 +40,7 @@ enum {
     T_ED_EXIT, T_ED_LOSE, T_ED_TOO_BIG, T_ED_FULL, T_TEXT_HELP,
     T_IMG_PROGRESSIVE, T_IMG_TOO_BIG, T_IMG_BROKEN, T_LOADING,
     T_VID_FORMAT, T_VID_CONVERT, T_VID_CODEC, T_VID_SIZE, T_VID_NO_AUDIO, T_VID_SUBSAMPLING,
+    T_AUD_FORMAT, T_AUD_CONVERT, T_AUD_CODEC, T_AUD_BROKEN,
     T_COUNT
 };
 
@@ -53,6 +54,8 @@ void ui_text_px(int x, int y, const char *s, uint16_t fg, uint16_t bg);   /* pix
 uint16_t *ui_buffer(void);
 int  ui_message(const char *title, const char *l1, const char *l2, const char *l3, bool yes_no);
 /* Up to three buttons; returns 1..3, or 0 if closed with B. Default = first button. */
+/* Bar across the top: the first text wraps over up to two lines, the second (dim) one below. */
+void ui_banner(const char *l1, const char *l2);
 int  ui_choice(const char *title, const char *l1, const char *b1, const char *b2, const char *b3);
 
 /* ------------------------------------------------------------------ input (main.c) */
@@ -104,6 +107,9 @@ bool is_image_file(const char *path);   /* by extension, plus .img covers by con
 bool is_macos_meta(const char *name);  /* "._name" AppleDouble files from macOS */
 bool is_video_ext(const char *name);   /* video.c */
 void play_video(const char *path);
+bool is_audio_ext(const char *name);   /* audio.c: files the player opens (or explains) */
+typedef enum { AU_STOP, AU_END, AU_NEXT, AU_PREV, AU_ERROR } au_result_t;
+au_result_t play_audio(const char *path);   /* shows its own error messages */
 bool is_text_ext(const char *name);
 
 /* ------------------------------------------------------------------ on-screen keyboard (kbd.c) */

@@ -15,6 +15,7 @@ tarjeta SD desde la propia consola: copiar, mover, renombrar, borrar, ver y edit
   (también las capturas del firmware).
 - **Ver vídeos**: AVI con vídeo Motion-JPEG y sonido PCM (los tuyos se convierten con un comando de
   ffmpeg).
+- **Escuchar música**: MP3 (también MP2) y WAV, siguiendo con el siguiente archivo de la carpeta.
 - **Editar texto** (`.txt`, `.cfg`, `.ini`…) con un teclado en pantalla.
 - **Editar en hexadecimal** cualquier archivo, con un teclado hexadecimal.
 - **Información** de archivos y carpetas, y de la **tarjeta SD** (capacidad, usado, libre).
@@ -52,6 +53,7 @@ Al pulsar **A** sobre un archivo:
 - `.jpg`, `.png`, `.gif`, `.bmp` → visor de imágenes; también las carátulas `.img` de Retro-Go
   (`/covers/...`), reconocidas por su contenido (otros `.img`, como imágenes de disco, se abren en hex);
 - `.avi` → reproductor de vídeo (`.mp4`, `.mkv`, `.mov`… explican cómo convertirlos);
+- `.mp3`, `.mp2`, `.wav` → reproductor de audio (`.ogg`, `.flac`, `.m4a`… explican cómo convertirlos);
 - `.txt`, `.cfg`, `.ini`, `.log`, `.json`, `.xml`, `.csv`, `.md`, `.c`, `.h`… → visor de texto;
 - cualquier otro → visor hexadecimal.
 
@@ -198,7 +200,8 @@ Muestra imágenes **JPEG**, **PNG**, **GIF** y **BMP** de cualquier tamaño, aju
 ## 8. El reproductor de vídeo
 
 Reproduce **archivos AVI con vídeo Motion-JPEG (como mucho 320x240) y sonido PCM**. Cada fotograma
-lo decodifica el chip JPEG de la consola, y la imagen va sincronizada con el sonido.
+lo decodifica el chip JPEG de la consola, y la imagen va sincronizada con el sonido. El nombre del
+archivo sale arriba durante los 3 primeros segundos.
 
 | Botón | Acción |
 |---|---|
@@ -225,7 +228,36 @@ puede subir si la tarjeta lee lo bastante rápido. Un clip de 4 minutos ocupa un
 audio PCM a otras frecuencias se convierte al reproducir; el comprimido (MP3, AAC…) se reproduce sin
 sonido.
 
-## 9. Consejos
+## 9. El reproductor de audio
+
+Reproduce **MP3** (MPEG-1/2/2.5 capa 3, CBR o VBR; también capas 1 y 2, `.mp2`) y **WAV** (PCM de
+8, 16, 24 y 32 bits, coma flotante de 32 bits, A-law y µ-law), mono o estéreo, a cualquier
+frecuencia. La consola tiene un solo altavoz, así que el estéreo se mezcla a mono.
+
+En pantalla salen la onda que está sonando, el tiempo y la duración con una barra de progreso, y
+el formato. Durante los 3 primeros segundos (y en pausa) una barra arriba muestra el título y el
+artista de las etiquetas ID3 de la canción, o el nombre del archivo.
+
+| Botón | Acción |
+|---|---|
+| A | Pausa / seguir |
+| Izquierda / derecha | Atrás / adelante 10 segundos |
+| Abajo / arriba | Atrás / adelante 1 minuto |
+| TIME | Siguiente archivo de audio de la carpeta |
+| GAME | Archivo de audio anterior |
+| B | Parar (vuelve a la lista) |
+| PAUSE/SET | Menú de Retro-Go; el sonido se pausa mientras |
+| PAUSE/SET + cruceta | Volumen / brillo, con el indicador |
+
+Cuando un archivo termina (o saltas más allá del final) suena el siguiente archivo de audio de la
+carpeta, así que una carpeta funciona como un álbum. Otros formatos (OGG, Opus, FLAC, M4A/AAC,
+WMA…) y los WAV comprimidos (ADPCM…) dan un aviso; conviértelos con [ffmpeg](https://ffmpeg.org/):
+
+```
+ffmpeg -i entrada.flac -c:a libmp3lame -q:a 2 salida.mp3
+```
+
+## 10. Consejos
 - Para editar la configuración de un emulador o un `.cfg`, ábrelo con **GAME → Editar texto**.
 - Para tocar una partida guardada, haz antes una copia (Copiar → Pegar en la misma carpeta crea
   `nombre (2).ext`) y edita el original en hexadecimal.
@@ -275,8 +307,10 @@ programa arranca también en firmwares sin las funciones nuevas).
 - `src/viewer.c`: visores de texto y hexadecimal (con el editor hexadecimal).
 - `src/image.c`: visor de imágenes (JPEG, PNG, GIF, BMP) con un escalado por bandas.
 - `src/video.c`: reproductor de vídeo AVI/MJPEG.
+- `src/audio.c`: reproductor de audio MP3/WAV.
 - `src/third_party/`: [picojpeg](https://github.com/richgel999/picojpeg) (dominio público) y la
-  parte de descompresión de [miniz](https://github.com/richgel999/miniz) (MIT), para JPEG y PNG.
+  parte de descompresión de [miniz](https://github.com/richgel999/miniz) (MIT), para JPEG y PNG;
+  [minimp3](https://github.com/lieff/minimp3) (CC0) para MP3.
 
 ## Estado
 
@@ -290,6 +324,10 @@ Probado en el emulador gwemu, con el firmware `external_cores` con el cambio y s
 - reproductor de vídeo: reproducción con sonido, pausa, saltos adelante y atrás, final del
   archivo, vídeo sin sonido, sonido estéreo a 24 kHz (convertido) y los avisos de MPEG-4,
   tamaño excesivo y MP4;
+- reproductor de audio: MP3 CBR/VBR/mono/22-48 kHz, MP2, WAV de 8/16/24 bits, flotante, A-law y
+  µ-law (todos comparados muestra a muestra con ffmpeg), títulos ID3v1/v2, saltos, pausa,
+  siguiente/anterior y final de archivo, el menú de Retro-Go y el indicador de volumen, y los
+  avisos de ADPCM/OGG;
 - copia de carpetas con subcarpetas: resultado idéntico byte a byte;
 - mover (instantáneo y por copia + borrado);
 - renombrar con el teclado;
@@ -309,4 +347,4 @@ emulador.
 ## Licencia
 
 MIT (ver `LICENSE`). Las cabeceras de `sdk/include/` mantienen sus licencias originales; picojpeg
-es de dominio público y miniz es MIT (`src/third_party/`).
+es de dominio público, miniz es MIT y minimp3 es CC0 (`src/third_party/`).
