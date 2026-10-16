@@ -2,9 +2,8 @@
  * File Manager — on-screen keyboard for names (rename, new folder).
  *
  *   D-pad  move        A  type the key      B  delete last character
- *   TIME   letters / symbols                GAME  accept      PAUSE  cancel
- * The bottom row also has Space / Delete / Shift / OK / Cancel keys. Shift: once = the next
- * letter in uppercase (green), twice = caps lock (red), three times = back to lowercase.
+ *   TIME   next page (abc / ABC / symbols)  GAME  accept      PAUSE  cancel
+ * The bottom row also has Space / Delete / Page / OK / Cancel keys.
  */
 #include <string.h>
 #include <stdio.h>
@@ -19,12 +18,10 @@ static const char *const PAGES[3][KROWS] = {
     { "!#$%&'()+=", "@^`{}[]~;,", "-_.       ", "          " },
 };
 enum { SK_SPACE, SK_DEL, SK_PAGE, SK_OK, SK_CANCEL, SK_COUNT };
-static const char *const SPECIAL_LABEL[SK_COUNT] = { "Espacio", "<-Borra", " Mayus", "  OK", "Cancela" };
-static const char *const SPECIAL_LABEL_EN[SK_COUNT] = { " Space", "<-Del", " Shift", "  OK", "Cancel" };
+static const char *const SPECIAL_LABEL[SK_COUNT] = { "Espacio", "<-Borra", "abc/ABC", "  OK", "Cancela" };
+static const char *const SPECIAL_LABEL_EN[SK_COUNT] = { " Space", "<-Del", "abc/ABC", "  OK", "Cancel" };
 
 extern bool fm_lang_es(void);
-
-static int g_shift;                   /* 0 lowercase, 1 next letter uppercase, 2 caps lock */
 
 static void draw(const char *title, const char *text, int page, int row, int col)
 {
@@ -50,10 +47,8 @@ static void draw(const char *title, const char *text, int page, int row, int col
     /* Special keys: 8 columns each */
     for (int s = 0; s < SK_COUNT; s++) {
         bool sel = (row == KROWS && col == s);
-        bool lit = (s == SK_PAGE && g_shift);
-        uint16_t bg = lit ? (g_shift == 2 ? C_SHIFT_LOCK : C_SHIFT_ONCE) : sel ? C_SEL_BG : 0x2104;
-        uint16_t fg = lit ? (sel ? C_SEL_BG : C_TEXT) : sel ? C_SEL_TEXT : C_DIR;
-        ui_text_w(s * 8, 7 + KROWS * 3, 7, fm_lang_es() ? SPECIAL_LABEL[s] : SPECIAL_LABEL_EN[s], fg, bg);
+        ui_text_w(s * 8, 7 + KROWS * 3, 7, fm_lang_es() ? SPECIAL_LABEL[s] : SPECIAL_LABEL_EN[s],
+                  sel ? C_SEL_TEXT : C_DIR, sel ? C_SEL_BG : 0x2104);
     }
     ui_text_w(0, FM_ROWS - 1, FM_COLS, tr(T_OSK_HELP), C_BAR_TEXT, C_BAR);
     ui_end();
@@ -64,12 +59,9 @@ bool osk_edit(const char *title, char *text, size_t size)
     char buf[256];
     strncpy(buf, text, sizeof buf - 1);
     buf[sizeof buf - 1] = '\0';
-    int row = 1, col = 0;
-    bool sym = false;
-    g_shift = 0;
+    int page = 0, row = 1, col = 0;
 
     for (;;) {
-        int page = sym ? 2 : g_shift ? 1 : 0;
         draw(title, buf, page, row, col);
         uint32_t k = input_wait();
         size_t n = strlen(buf);
@@ -86,7 +78,7 @@ bool osk_edit(const char *title, char *text, size_t size)
         }
         if (k & K_LEFT)  col = (col + maxcol - 1) % maxcol;
         if (k & K_RIGHT) col = (col + 1) % maxcol;
-        if (k & K_TIME)  sym = !sym;
+        if (k & K_TIME)  page = (page + 1) % 3;
         if (k & K_B) {
             if (n) buf[n - 1] = '\0';
         }
@@ -97,14 +89,11 @@ bool osk_edit(const char *title, char *text, size_t size)
         if (k & K_A) {
             if (row < KROWS) {
                 char ch = PAGES[page][row][col];
-                if (ch != ' ' && n + 1 < sizeof buf && n + 1 < size) {
-                    buf[n] = ch; buf[n + 1] = '\0';
-                    if (g_shift == 1 && !sym) g_shift = 0;       /* one uppercase letter */
-                }
+                if (ch != ' ' && n + 1 < sizeof buf && n + 1 < size) { buf[n] = ch; buf[n + 1] = '\0'; }
             } else switch (col) {
                 case SK_SPACE:  if (n + 1 < sizeof buf && n + 1 < size) { buf[n] = ' '; buf[n + 1] = '\0'; } break;
                 case SK_DEL:    if (n) buf[n - 1] = '\0'; break;
-                case SK_PAGE:   g_shift = (g_shift + 1) % 3; sym = false; break;
+                case SK_PAGE:   page = (page + 1) % 3; break;
                 case SK_OK:     goto accept;
                 case SK_CANCEL: return false;
             }

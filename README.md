@@ -100,12 +100,11 @@ A full-screen keyboard with the name at the top:
 | D-pad | Move between keys |
 | A | Type the key |
 | B | Delete the last character |
-| TIME | Switch between letters and symbols |
+| TIME | Switch between lowercase, uppercase and symbols |
 | GAME | Accept |
 | PAUSE | Cancel |
 
-The bottom row also has **Space**, **Del**, **Shift**, **OK** and **Cancel**. **Shift**: one press
-(green) capitalises only the next letter; two presses (red) lock it; three release it. Names with
+The bottom row also has **Space**, **Del**, **abc/ABC**, **OK** and **Cancel**. Names with
 characters the card does not allow (`\ / : * ? " < > |`) are rejected.
 
 ## 5. The text editor
