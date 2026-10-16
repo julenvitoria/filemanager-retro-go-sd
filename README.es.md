@@ -346,9 +346,9 @@ Probado en el emulador gwemu, con el firmware `external_cores` con el cambio y s
 - editor de texto: escribir, borrar, mover, Mayús, guardar (CRLF y UTF-8 intactos), salir sin
   guardar y crear un archivo nuevo.
 
-En la consola se ha probado la parte de archivos (navegar, copiar, mover, renombrar, borrar…).
-Los editores de texto y hexadecimal y los visores de imágenes y vídeo, de momento, solo en el
-emulador.
+En la consola se ha probado la parte de archivos (navegar, copiar y sobrescribir, mover,
+renombrar, borrar…), el visor de imágenes, el reproductor de vídeo (sonido PCM y MP3) y el de
+audio. Los editores de texto y hexadecimal, de momento, solo en el emulador.
 
 ## Licencia
 
