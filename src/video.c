@@ -716,6 +716,8 @@ void play_video(const char *path)
     bool title_on = true;
     uint32_t afb = sound ? audio_frame_bytes(&a) : 0;
     g_keys = 0;
+    avi_t au = a;                                   /* the sound's cursor */
+    bool au_end = false, vid_end = false;
 
 #ifdef VID_DEBUG
     uint32_t dbg_t = HAL_GetTick(), dbg_it = 0;
@@ -764,6 +766,8 @@ void play_video(const char *path)
             if (sound) ring_reset();
             mp3_reset();
             avi_seek(&a, (uint32_t)t, first_movi_end);
+            au = a;
+            au_end = vid_end = false;
 #ifdef VID_DEBUG
             dbg("seek %ld -> frame %lu asamples %lu pos %lu\n", (long)t, (unsigned long)a.frame, (unsigned long)a.asamples, (unsigned long)a.pos);
 #endif
@@ -781,26 +785,28 @@ void play_video(const char *path)
 
         try_show();
 
-        /* ---- next chunk */
-        uint32_t save_pos = a.pos, save_end = a.movi_end;
-        int kind; uint32_t size, data;
-        if (!next_chunk(&a, &kind, &size, &data)) {
-            /* end: show the last frame, let the sound finish */
-            if (sound && a.a_mp3) mp3_decode_acc(true);
-            while (PL.pending && !(g_keys & URGENT_KEYS)) { poll_keys(); try_show(); HAL_Delay(1); wdog_refresh();
-                                                          if (sound && ring_fill() == 0 && PL.pending) show_pending(); }
-            while (sound && ring_fill() > 0 && !(g_keys & K_B)) { wdog_refresh(); poll_keys(); HAL_Delay(5); }
-            break;
-        }
-        if (kind == 1) {
-            if (!sound || (!afb && !a.a_mp3)) continue;
-            /* wait for room (the pending frame keeps its time meanwhile) */
-            uint32_t need = (uint32_t)((uint64_t)(chunk_samples(&a, size) + (a.a_mp3 ? 1152 : 0)) * g_out_rate / a.a_rate) + 2;
+        /* Two cursors over the chunks: the sound one reads ahead while there is room in the
+         * ring (so the speaker never runs dry while a frame waits for its time), the picture
+         * one takes the next frame once the previous one is shown. */
+        bool busy = false;
+
+        /* ---- sound */
+        while (sound && !au_end && !(g_keys & URGENT_KEYS)) {
+            uint32_t save_pos = au.pos, save_end = au.movi_end;
+            int kind; uint32_t size, data;
+            if (!next_chunk(&au, &kind, &size, &data)) {
+                au_end = true;
+                if (au.a_mp3) mp3_decode_acc(true);
+                break;
+            }
+            if (kind != 1 || (!afb && !au.a_mp3)) continue;
+            uint32_t need = (uint32_t)((uint64_t)(chunk_samples(&au, size) + (au.a_mp3 ? 1152 : 0)) * g_out_rate / au.a_rate) + 2;
             if (need > RING_SAMPLES / 2) need = RING_SAMPLES / 2;
-            if ((uint32_t)ring_free() < need) { a.pos = save_pos; a.movi_end = save_end; HAL_Delay(1); continue; }
-            if (a.a_mp3) {
-                mp3_feed(&a, data, size);
-                a.asamples += chunk_samples(&a, size);
+            if ((uint32_t)ring_free() < need) { au.pos = save_pos; au.movi_end = save_end; break; }   /* full enough */
+            busy = true;
+            if (au.a_mp3) {
+                mp3_feed(&au, data, size);
+                au.asamples += chunk_samples(&au, size);
                 continue;
             }
             uint8_t *tmp = PL.frame_buf + FRAME_MAX - 16384;   /* frames never reach the buffer's tail */
@@ -808,26 +814,39 @@ void play_video(const char *path)
             while (left) {
                 uint32_t n = left > 16384 ? 16384 : left;
                 n -= n % afb;
-                if (!n || !rd(&a, off, tmp, n)) break;
-                push_pcm(&a, tmp, n / afb);
-                a.asamples += n / afb;
+                if (!n || !rd(&au, off, tmp, n)) break;
+                push_pcm(&au, tmp, n / afb);
+                au.asamples += n / afb;
                 off += n; left -= n;
                 if (g_keys & URGENT_KEYS) break;
             }
-            continue;
+        }
+        try_show();
+
+        /* ---- picture */
+        while (!PL.pending && !vid_end && !(g_keys & URGENT_KEYS)) {
+            uint32_t save_pos = a.pos;
+            int kind; uint32_t size, data;
+            if (!next_chunk(&a, &kind, &size, &data)) { vid_end = true; break; }
+            if (kind != 0) continue;
+            busy = true;
+            ckpt_record(&a, save_pos);
+            uint32_t fno = a.frame++;
+            uint64_t due = (uint64_t)fno * a.us_per_frame;
+            if (clock_us() > due + a.us_per_frame) continue;           /* late: drop it */
+            if (size == 0 || size > FRAME_MAX - 16384 || !rd(&a, data, PL.frame_buf, size)) continue;
+            if (!frame_fits(PL.frame_buf, size)) continue;
+            PL.pending = true;
+            PL.pend_frame = fno; PL.pend_pos = data; PL.pend_size = size;
+            try_show();
         }
 
-        /* video frame: wait while the previous one is still waiting for its time */
-        if (PL.pending) { a.pos = save_pos; a.movi_end = save_end; HAL_Delay(1); continue; }
-        ckpt_record(&a, save_pos);
-        uint32_t fno = a.frame++;
-        uint64_t due = (uint64_t)fno * a.us_per_frame;
-        if (clock_us() > due + a.us_per_frame) continue;           /* late: drop it */
-        if (size == 0 || size > FRAME_MAX - 16384 || !rd(&a, data, PL.frame_buf, size)) continue;
-        if (!frame_fits(PL.frame_buf, size)) continue;
-        PL.pending = true;
-        PL.pend_frame = fno; PL.pend_pos = data; PL.pend_size = size;
-        try_show();
+        /* ---- end: the last frame shown and the sound played out */
+        if (vid_end && (!sound || au_end)) {
+            if (PL.pending && sound && ring_fill() == 0) show_pending();
+            if (!PL.pending && (!sound || ring_fill() == 0)) break;
+        }
+        if (!busy) HAL_Delay(1);
     }
 
     fm_menu_hook = NULL;
