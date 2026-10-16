@@ -87,9 +87,11 @@ bool fs_count(const char *path, fs_count_t *out);        /* recursive; cancellab
 typedef enum { OP_OK, OP_ERROR, OP_CANCELLED } op_result_t;
 /* Progress for a batch: set the total once, then every copy/delete reports into it. */
 void op_begin(const char *title, uint64_t total_bytes, uint32_t total_items);
+void op_resume(const char *title);  /* the bar again after a dialog, progress kept */
 op_result_t op_copy(const char *src, const char *dst);   /* file or folder, recursive */
 op_result_t op_move(const char *src, const char *dst);   /* rename if possible, else copy+delete */
-op_result_t op_delete(const char *path);                 /* file or folder, recursive */
+op_result_t op_delete(const char *path);
+op_result_t op_delete_uncounted(const char *path);      /* same, without moving the progress bar */                 /* file or folder, recursive */
 bool op_fast_rename_available(void);
 bool fs_rename(const char *src, const char *dst);        /* firmware rename (fast) or false */
 bool fs_free_space(uint64_t *free_bytes, uint64_t *total_bytes);
