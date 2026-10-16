@@ -23,6 +23,8 @@
 #define C_SEL_TEXT    0x0000
 #define C_MARK        0x07FF        /* cyan */
 #define C_WARN        0xF800
+#define C_SHIFT_ONCE  0x0460        /* Shift for the next key: green */
+#define C_SHIFT_LOCK  0xC000        /* Shift locked (caps lock): red */
 
 /* ------------------------------------------------------------------ text */
 const char *tr(int id);             /* translated UI string (main.c) */

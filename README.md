@@ -100,11 +100,12 @@ A full-screen keyboard with the name at the top:
 | D-pad | Move between keys |
 | A | Type the key |
 | B | Delete the last character |
-| TIME | Switch between lowercase, uppercase and symbols |
+| TIME | Switch between letters and symbols |
 | GAME | Accept |
 | PAUSE | Cancel |
 
-The bottom row also has **Space**, **Del**, **abc/ABC**, **OK** and **Cancel**. Names with
+The bottom row also has **Space**, **Del**, **Shift**, **OK** and **Cancel**. **Shift**: one press
+(green) capitalises only the next letter; two presses (red) lock it; three release it. Names with
 characters the card does not allow (`\ / : * ? " < > |`) are rejected.
 
 ## 5. The text editor
@@ -125,8 +126,8 @@ The editor has two modes, switched with **TIME**:
 
 **Special keys:** Bksp (backspace), Del (deletes the character under the cursor), Enter (new
 line), Tab, Space, arrows `< > ^ v`, Home/End (start/end of line) and PgUp/PgDn.
-**Shift**: one press capitalises only the next key; two presses lock it (it shows `SHIFT`); three
-release it.
+**Shift**: one press (green) capitalises only the next key; two presses (red, it shows `SHIFT`)
+lock it; three release it.
 
 **Editor menu (GAME):** Save, Save and exit, or Exit without saving (asks for confirmation). With
 no changes it only offers Exit.
