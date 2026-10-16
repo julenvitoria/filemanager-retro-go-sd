@@ -7,6 +7,7 @@
  */
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdint.h>
 
 #include "gw_lcd.h"
@@ -98,10 +99,28 @@ static void *abi_ext(uint32_t off)
 
 bool op_fast_rename_available(void) { return abi_ext(EXT_RENAME_OFF) != NULL; }
 
+/* The firmware's rename first deletes whatever has the new name, so it replaces files. FAT names
+ * ignore case, though: renaming "BOOT.IMG" to "BOOT.img" would delete the file itself. A change
+ * of case therefore goes through a temporary name in the same folder. */
 bool fs_rename(const char *src, const char *dst)
 {
     bool (*fn)(const char *, const char *) = (bool (*)(const char *, const char *))abi_ext(EXT_RENAME_OFF);
-    return fn && fn(src, dst);
+    if (!fn) return false;
+    if (strcasecmp(src, dst) != 0) return fn(src, dst);
+    if (strcmp(src, dst) == 0) return true;
+    char tmp[FM_PATH_MAX];
+    snprintf(tmp, sizeof tmp, "%s", src);
+    path_parent(tmp);
+    size_t n = strlen(tmp);
+    for (unsigned i = 0;; i++) {
+        snprintf(tmp + n, sizeof tmp - n, "%s~fmren%u.tmp", (n && tmp[n - 1] == '/') ? "" : "/", i);
+        if (!fs_exists(tmp)) break;
+        if (i > 999) return false;
+    }
+    if (!fn(src, tmp)) return false;
+    if (fn(tmp, dst)) return true;
+    fn(tmp, src);                                  /* put it back */
+    return false;
 }
 
 bool fs_free_space(uint64_t *free_bytes, uint64_t *total_bytes)

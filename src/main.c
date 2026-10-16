@@ -708,10 +708,10 @@ static void do_rename(void)
         return;
     }
     op_result_t r;
-    if (fs_rename(src, dst)) {
+    if (fs_rename(src, dst)) {                  /* (a change of case goes through a temporary name) */
         r = OP_OK;
     } else if (strcasecmp(name, ename(e)) == 0) {
-        /* case-only change without the firmware's rename: go through a temporary name */
+        /* case-only change without the firmware's rename: copy through a temporary name */
         char tmp[FM_PATH_MAX];
         unique_name(tmp, g_cwd, "~rename");
         op_begin(tr(T_MOVING), 0, 2);
