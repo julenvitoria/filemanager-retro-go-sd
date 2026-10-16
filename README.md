@@ -14,7 +14,7 @@ from the console itself: copy, move, rename, delete, view and edit files.
 - **View** text files, hex dumps and **images**: JPEG, PNG, GIF (animated too) and BMP (also the
   firmware's screenshots).
 - **Play videos**: AVI with Motion-JPEG video and PCM sound (convert yours with one ffmpeg command).
-- **Play music**: MP3 (also MP2) and WAV, going on with the next file of the folder.
+- **Play music**: MP3 (also MP2), FLAC and WAV, going on with the next file of the folder.
 - **Edit text** (`.txt`, `.cfg`, `.ini`…) with an on-screen keyboard.
 - **Hex-edit** any file, with a hex keypad.
 - **Information** about files and folders, and about the **SD card** (capacity, used, free).
@@ -52,7 +52,7 @@ Pressing **A** on a file opens:
 - `.jpg`, `.png`, `.gif`, `.bmp` → image viewer; also the `.img` cover thumbnails of Retro-Go
   (`/covers/...`), recognised by their content (other `.img` files, such as disk images, open in hex);
 - `.avi` → video player (`.mp4`, `.mkv`, `.mov`… show how to convert them);
-- `.mp3`, `.mp2`, `.wav` → audio player (`.ogg`, `.flac`, `.m4a`… show how to convert them);
+- `.mp3`, `.mp2`, `.flac`, `.wav` → audio player (`.ogg`, `.m4a`… show how to convert them);
 - `.txt`, `.cfg`, `.ini`, `.log`, `.json`, `.xml`, `.csv`, `.md`, `.c`, `.h`… → text viewer;
 - anything else → hex viewer.
 
@@ -226,13 +226,14 @@ rates is converted while playing; compressed audio (MP3, AAC…) plays without s
 
 ## 9. The audio player
 
-Plays **MP3** (MPEG-1/2/2.5 layer 3, CBR or VBR; also layer 1 and 2, `.mp2`) and **WAV** (PCM 8,
-16, 24 and 32 bits, 32-bit float, A-law and µ-law), mono or stereo, at any sample rate. The
+Plays **MP3** (MPEG-1/2/2.5 layer 3, CBR or VBR; also layer 1 and 2, `.mp2`), **FLAC** (up to 24
+bits, any compression level) and **WAV** (PCM 8, 16, 24 and 32 bits, 32-bit float, A-law and
+µ-law), mono or stereo, at any sample rate. The
 console has one speaker, so stereo is mixed to mono.
 
 The screen shows the waveform being played, the time and length with a progress bar, and the
 format. For the first 3 seconds (and while paused) a bar at the top shows the song's title and
-artist from its ID3 tags, or the file name.
+artist from its tags (ID3 or FLAC), or the file name.
 
 | Button | Action |
 |---|---|
@@ -246,12 +247,12 @@ artist from its ID3 tags, or the file name.
 | PAUSE/SET + D-pad | Volume / brightness, with the indicator |
 
 When a file ends (or you skip past its end) the next audio file of the folder plays, so a folder
-works as an album. Other formats (OGG, Opus, FLAC, M4A/AAC, WMA…) and compressed WAV (ADPCM…)
+works as an album. Other formats (OGG, Opus, M4A/AAC, WMA…) and compressed WAV (ADPCM…)
 show a message, as do files that hold no audio (such as a failed download that only kept the
 tags and cover) and other formats renamed to `.mp3`; convert them with [ffmpeg](https://ffmpeg.org/):
 
 ```
-ffmpeg -i input.flac -c:a libmp3lame -q:a 2 output.mp3
+ffmpeg -i input.m4a -c:a libmp3lame -q:a 2 output.mp3
 ```
 
 ## 10. Tips
@@ -304,7 +305,7 @@ starts on firmware without the new functions).
 - `src/viewer.c`: text and hex viewers (with the hex editor).
 - `src/image.c`: image viewer (JPEG, PNG, GIF, BMP) with a streaming scaler.
 - `src/video.c`: AVI/MJPEG video player.
-- `src/audio.c`: MP3/WAV audio player.
+- `src/audio.c`: MP3/FLAC/WAV audio player; `src/flac.c`: a small FLAC decoder of its own.
 - `src/third_party/`: [picojpeg](https://github.com/richgel999/picojpeg) (public domain) and the
   inflate part of [miniz](https://github.com/richgel999/miniz) (MIT), for JPEG and PNG;
   [minimp3](https://github.com/lieff/minimp3) (CC0) for MP3.
@@ -320,8 +321,9 @@ Tested in the gwemu emulator, with the `external_cores` firmware with and withou
   left/right;
 - video player: playback with sound, pause, seeking both ways, end of file, a video without
   sound, stereo 24 kHz sound (resampled), and the messages for MPEG-4, too-big and MP4 files;
-- audio player: MP3 CBR/VBR/mono/22-48 kHz, MP2, WAV 8/16/24-bit, float, A-law, µ-law (all
-  checked sample by sample against ffmpeg), ID3v1/v2 titles, seeking, pause, next/previous and
+- audio player: MP3 CBR/VBR/mono/22-48 kHz, MP2, WAV 8/16/24-bit, float, A-law, µ-law, FLAC
+  16/24-bit, mono, every stereo mode and 8192-sample blocks (all checked sample by sample
+  against ffmpeg), ID3v1/v2 titles, seeking, pause, next/previous and
   end of file, the Retro-Go menu and the volume indicator, and the ADPCM/OGG messages;
 - copying folders with subfolders: byte-identical result;
 - moving (instant, and by copy + delete);
