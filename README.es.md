@@ -316,16 +316,6 @@ programa arranca también en firmwares sin las funciones nuevas).
   parte de descompresión de [miniz](https://github.com/richgel999/miniz) (MIT), para JPEG y PNG;
   [minimp3](https://github.com/lieff/minimp3) (CC0) para MP3.
 
-## Archivos de prueba
-
-En la [release **pruebas**](https://github.com/julenvitoria/filemanager-retro-go-sd/releases/tag/pruebas) hay un paquete de archivos de prueba para todos los visores y
-reproductores (`pruebas_filemanager_completo.zip`, unos 100 MB): imágenes (JPEG, PNG, GIF, BMP,
-carátulas `.img`), vídeos AVI (sonido PCM y MP3, de 15 a 24 fps, con un reloj y un destello con
-pitido cada segundo para comprobar la sincronía), audio (MP3, MP2, WAV en todas sus variantes,
-FLAC, AIFF) y archivos de texto. Todo está generado a propósito: no hay material de terceros.
-Descomprímelo, copia la carpeta a la SD y abre los archivos desde el File Manager; el
-`LEEME.txt` explica qué prueba cada uno y cuáles deben dar un aviso en lugar de reproducirse.
-
 ## Estado
 
 Probado en el emulador gwemu, con el firmware `external_cores` con el cambio y sin él:
