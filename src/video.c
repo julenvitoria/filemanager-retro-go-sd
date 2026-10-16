@@ -772,7 +772,8 @@ void play_video(const char *path)
             dbg("seek %ld -> frame %lu asamples %lu pos %lu\n", (long)t, (unsigned long)a.frame, (unsigned long)a.asamples, (unsigned long)a.pos);
 #endif
             /* the clock restarts at the audio position reached (sound) or at the frame (no sound) */
-            PL.base_us = sound ? a.asamples * 1000000 / a.a_rate : (uint64_t)a.frame * a.us_per_frame;
+            /* (MP3: from the frame, as the byte rate in the header is often missing or rough) */
+            PL.base_us = sound && !a.a_mp3 ? a.asamples * 1000000 / a.a_rate : (uint64_t)a.frame * a.us_per_frame;
             PL.tick0 = HAL_GetTick();
             PL.underrun = false;
             PL.osd_until = HAL_GetTick() + 2000;
@@ -792,6 +793,7 @@ void play_video(const char *path)
 
         /* ---- sound */
         while (sound && !au_end && !(g_keys & URGENT_KEYS)) {
+            poll_keys();                            /* a short press must not slip between polls */
             uint32_t save_pos = au.pos, save_end = au.movi_end;
             int kind; uint32_t size, data;
             if (!next_chunk(&au, &kind, &size, &data)) {
@@ -825,6 +827,7 @@ void play_video(const char *path)
 
         /* ---- picture */
         while (!PL.pending && !vid_end && !(g_keys & URGENT_KEYS)) {
+            poll_keys();
             uint32_t save_pos = a.pos;
             int kind; uint32_t size, data;
             if (!next_chunk(&a, &kind, &size, &data)) { vid_end = true; break; }
