@@ -15,7 +15,7 @@ tarjeta SD desde la propia consola: copiar, mover, renombrar, borrar, ver y edit
   (también las capturas del firmware).
 - **Ver vídeos**: AVI con vídeo Motion-JPEG y sonido PCM (los tuyos se convierten con un comando de
   ffmpeg).
-- **Escuchar música**: MP3 (también MP2) y WAV, siguiendo con el siguiente archivo de la carpeta.
+- **Escuchar música**: MP3 (también MP2), FLAC y WAV, siguiendo con el siguiente archivo de la carpeta.
 - **Editar texto** (`.txt`, `.cfg`, `.ini`…) con un teclado en pantalla.
 - **Editar en hexadecimal** cualquier archivo, con un teclado hexadecimal.
 - **Información** de archivos y carpetas, y de la **tarjeta SD** (capacidad, usado, libre).
@@ -53,7 +53,7 @@ Al pulsar **A** sobre un archivo:
 - `.jpg`, `.png`, `.gif`, `.bmp` → visor de imágenes; también las carátulas `.img` de Retro-Go
   (`/covers/...`), reconocidas por su contenido (otros `.img`, como imágenes de disco, se abren en hex);
 - `.avi` → reproductor de vídeo (`.mp4`, `.mkv`, `.mov`… explican cómo convertirlos);
-- `.mp3`, `.mp2`, `.wav` → reproductor de audio (`.ogg`, `.flac`, `.m4a`… explican cómo convertirlos);
+- `.mp3`, `.mp2`, `.flac`, `.wav` → reproductor de audio (`.ogg`, `.m4a`… explican cómo convertirlos);
 - `.txt`, `.cfg`, `.ini`, `.log`, `.json`, `.xml`, `.csv`, `.md`, `.c`, `.h`… → visor de texto;
 - cualquier otro → visor hexadecimal.
 
@@ -230,13 +230,13 @@ sonido.
 
 ## 9. El reproductor de audio
 
-Reproduce **MP3** (MPEG-1/2/2.5 capa 3, CBR o VBR; también capas 1 y 2, `.mp2`) y **WAV** (PCM de
-8, 16, 24 y 32 bits, coma flotante de 32 bits, A-law y µ-law), mono o estéreo, a cualquier
-frecuencia. La consola tiene un solo altavoz, así que el estéreo se mezcla a mono.
+Reproduce **MP3** (MPEG-1/2/2.5 capa 3, CBR o VBR; también capas 1 y 2, `.mp2`), **FLAC** (hasta 24
+bits, cualquier nivel de compresión) y **WAV** (PCM de 8, 16, 24 y 32 bits, coma flotante de 32
+bits, A-law y µ-law), mono o estéreo, a cualquier frecuencia. La consola tiene un solo altavoz, así que el estéreo se mezcla a mono.
 
 En pantalla salen la onda que está sonando, el tiempo y la duración con una barra de progreso, y
 el formato. Durante los 3 primeros segundos (y en pausa) una barra arriba muestra el título y el
-artista de las etiquetas ID3 de la canción, o el nombre del archivo.
+artista de las etiquetas de la canción (ID3 o FLAC), o el nombre del archivo.
 
 | Botón | Acción |
 |---|---|
@@ -250,13 +250,13 @@ artista de las etiquetas ID3 de la canción, o el nombre del archivo.
 | PAUSE/SET + cruceta | Volumen / brillo, con el indicador |
 
 Cuando un archivo termina (o saltas más allá del final) suena el siguiente archivo de audio de la
-carpeta, así que una carpeta funciona como un álbum. Otros formatos (OGG, Opus, FLAC, M4A/AAC,
+carpeta, así que una carpeta funciona como un álbum. Otros formatos (OGG, Opus, M4A/AAC,
 WMA…) y los WAV comprimidos (ADPCM…) dan un aviso, igual que los archivos sin audio (como una
 descarga fallida que solo guardó las etiquetas y la carátula) y otros formatos renombrados a
 `.mp3`; conviértelos con [ffmpeg](https://ffmpeg.org/):
 
 ```
-ffmpeg -i entrada.flac -c:a libmp3lame -q:a 2 salida.mp3
+ffmpeg -i entrada.m4a -c:a libmp3lame -q:a 2 salida.mp3
 ```
 
 ## 10. Consejos
@@ -309,7 +309,8 @@ programa arranca también en firmwares sin las funciones nuevas).
 - `src/viewer.c`: visores de texto y hexadecimal (con el editor hexadecimal).
 - `src/image.c`: visor de imágenes (JPEG, PNG, GIF, BMP) con un escalado por bandas.
 - `src/video.c`: reproductor de vídeo AVI/MJPEG.
-- `src/audio.c`: reproductor de audio MP3/WAV.
+- `src/audio.c`: reproductor de audio MP3/FLAC/WAV; `src/flac.c`: un decodificador FLAC propio y
+  pequeño.
 - `src/third_party/`: [picojpeg](https://github.com/richgel999/picojpeg) (dominio público) y la
   parte de descompresión de [miniz](https://github.com/richgel999/miniz) (MIT), para JPEG y PNG;
   [minimp3](https://github.com/lieff/minimp3) (CC0) para MP3.
@@ -326,8 +327,9 @@ Probado en el emulador gwemu, con el firmware `external_cores` con el cambio y s
 - reproductor de vídeo: reproducción con sonido, pausa, saltos adelante y atrás, final del
   archivo, vídeo sin sonido, sonido estéreo a 24 kHz (convertido) y los avisos de MPEG-4,
   tamaño excesivo y MP4;
-- reproductor de audio: MP3 CBR/VBR/mono/22-48 kHz, MP2, WAV de 8/16/24 bits, flotante, A-law y
-  µ-law (todos comparados muestra a muestra con ffmpeg), títulos ID3v1/v2, saltos, pausa,
+- reproductor de audio: MP3 CBR/VBR/mono/22-48 kHz, MP2, WAV de 8/16/24 bits, flotante, A-law,
+  µ-law, FLAC de 16/24 bits, mono, todos los modos estéreo y bloques de 8192 muestras (todos
+  comparados muestra a muestra con ffmpeg), títulos ID3v1/v2, saltos, pausa,
   siguiente/anterior y final de archivo, el menú de Retro-Go y el indicador de volumen, y los
   avisos de ADPCM/OGG;
 - copia de carpetas con subcarpetas: resultado idéntico byte a byte;

@@ -1,6 +1,6 @@
 /*
- * File Manager — audio player: WAV (PCM 8/16/24/32-bit, float, A-law, µ-law) and MP3
- * (also MPEG layer 1/2), decoded with minimp3 (CC0).
+ * File Manager — audio player: WAV (PCM 8/16/24/32-bit, float, A-law, µ-law), MP3
+ * (also MPEG layer 1/2) decoded with minimp3 (CC0), and FLAC (flac.c).
  *
  * The sound goes to the firmware's PCM ring (pcm_attach), mono, at the file's rate when the
  * SAI supports it (linear resampling otherwise). Controls as in the video player:
@@ -12,6 +12,7 @@
 #include <string.h>
 #include <strings.h>
 #include "fm.h"
+#include "flac.h"
 
 extern void wdog_refresh(void);
 extern uint32_t HAL_GetTick(void);
@@ -37,6 +38,11 @@ void    *lcd_get_active_buffer(void);
 #define OFF_PCM      (92 * 1024)                         /* decoded frame (int16) */
 #define PCM_BYTES    (16 * 1024)
 #define OFF_END      (OFF_PCM + PCM_BYTES)
+/* FLAC: its input window over the MP3 decoder's area, the channels after the rest */
+#define OFF_FIN      OFF_DEC
+#define FIN_SIZE     (OFF_PCM - OFF_DEC)                 /* 60 KB */
+#define OFF_FCH      OFF_END                             /* 2 x 32 KB */
+#define FCH_BYTES    (FLAC_MAX_BLOCK * 4)
 
 #define MINIMP3_IMPLEMENTATION
 #define MINIMP3_NO_SIMD
@@ -47,6 +53,8 @@ _Static_assert(sizeof(mp3dec_t) <= OFF_SCR - OFF_DEC, "mp3dec_t does not fit");
 _Static_assert(sizeof(mp3dec_scratch_t) <= OFF_IN - OFF_SCR, "minimp3 scratch does not fit");
 _Static_assert(MINIMP3_MAX_SAMPLES_PER_FRAME * 2 <= PCM_BYTES, "pcm buffer");
 _Static_assert(OFF_END <= FM_SCRATCH_SIZE, "fm_scratch too small");
+_Static_assert(OFF_FCH + 2 * FCH_BYTES <= FM_SCRATCH_SIZE, "fm_scratch too small for FLAC");
+_Static_assert(FLAC_MAX_BLOCK * 2 <= PCM_BYTES, "pcm buffer (FLAC)");
 
 static int16_t *const g_ring = (int16_t *)(fm_scratch + OFF_RING);
 static uint8_t *const g_in = fm_scratch + OFF_IN;
@@ -62,8 +70,8 @@ static bool ext_is(const char *name, const char *const *list)
     for (; *list; list++) if (strcasecmp(dot + 1, *list) == 0) return true;
     return false;
 }
-static const char *const PLAYABLE[] = { "wav", "wave", "mp3", "mp2", "mpa", NULL };
-static const char *const OTHER[]    = { "ogg", "oga", "opus", "flac", "m4a", "aac", "wma", "aif", "aiff",
+static const char *const PLAYABLE[] = { "wav", "wave", "mp3", "mp2", "mpa", "flac", "fla", NULL };
+static const char *const OTHER[]    = { "ogg", "oga", "opus", "m4a", "aac", "wma", "aif", "aiff",
                                         "ape", "wv", "mid", "midi", "mod", "xm", "s3m", "it", "amr", "ac3", NULL };
 
 bool is_audio_ext(const char *name)
@@ -74,7 +82,7 @@ bool is_audio_ext(const char *name)
 
 /* ---------------------------------------------------------------- source */
 
-enum { SRC_WAV, SRC_MP3 };
+enum { SRC_WAV, SRC_MP3, SRC_FLAC };
 enum { W_PCM, W_FLOAT, W_ALAW, W_ULAW };
 
 typedef struct {
@@ -92,6 +100,9 @@ typedef struct {
     uint8_t toc[100]; bool has_toc;
     uint32_t in_len, in_pos;                 /* g_in window */
     bool eof;
+    /* FLAC */
+    flac_info_t fi;
+    bool resync;                             /* after a seek: take the time from the next frame */
     /* tags */
     char title[96], artist[96];
 } src_t;
@@ -547,7 +558,7 @@ static void draw(void)
         ui_fill(x0, FM_H - 9, w, 4, 0x4208);
         ui_fill(x0, FM_H - 9, (int)((uint64_t)w * cur / tot), 4, C_SEL_BG);
     }
-    snprintf(line, sizeof line, "%s  %lu Hz  %s", s->kind == SRC_MP3 ? "MP3" : "WAV", (unsigned long)s->rate,
+    snprintf(line, sizeof line, "%s  %lu Hz  %s", s->kind == SRC_MP3 ? "MP3" : s->kind == SRC_FLAC ? "FLAC" : "WAV", (unsigned long)s->rate,
              s->channels == 1 ? "mono" : "stereo");
     ui_text_px((FM_W - (int)strlen(line) * 8) / 2, FM_H - 28, line, C_DIM, C_BG);
 
@@ -576,6 +587,41 @@ static void menu_hook(bool entering)
     pcm_audio_set(common_emu_sound_get_volume(), (entering || P.paused) ? 0 : 1);
 }
 
+/* ---------------------------------------------------------------- FLAC glue */
+
+static int flac_open_src(src_t *s, uint32_t size)
+{
+    int r = flac_open(s->f, size, &s->fi, g_in, IN_SIZE);
+    if (r) return r;
+    s->kind = SRC_FLAC;
+    s->rate = s->fi.rate;
+    s->channels = s->fi.channels;
+    s->bits = s->fi.bps;
+    s->data_start = s->fi.first_frame;
+    s->data_end = size;
+    s->total_ms = (uint32_t)(s->fi.total * 1000 / s->fi.rate);
+    snprintf(s->title, sizeof s->title, "%s", s->fi.title);
+    snprintf(s->artist, sizeof s->artist, "%s", s->fi.artist);
+    return 0;
+}
+
+static void flac_restart(src_t *s, uint32_t pos)
+{
+    flac_start(s->f, &s->fi, pos, s->data_end, fm_scratch + OFF_FIN, FIN_SIZE,
+               (int32_t *)(fm_scratch + OFF_FCH), (int32_t *)(fm_scratch + OFF_FCH + FCH_BYTES));
+}
+
+static int flac_read(src_t *s)
+{
+    uint64_t first;
+    int n = flac_decode(g_pcm, &first);
+    if (n > 0 && s->resync) {                     /* where the seek really landed */
+        s->resync = false;
+        P.base_ms = (uint32_t)(first * 1000 / s->rate);
+    }
+    return n;
+}
+
 /* ---------------------------------------------------------------- player */
 
 static void seek_to(src_t *s, uint32_t *pos, int64_t ms)
@@ -587,6 +633,13 @@ static void seek_to(src_t *s, uint32_t *pos, int64_t ms)
         *pos = s->data_start + (uint32_t)(frame * s->align);
         if (*pos > s->data_end) *pos = s->data_end;
         ms = (int64_t)(frame * 1000 / s->rate);
+    } else if (s->kind == SRC_FLAC) {
+        uint32_t bytes = s->data_end - s->data_start;
+        uint32_t off = s->total_ms ? (uint32_t)((uint64_t)bytes * (uint64_t)ms / s->total_ms) : 0;
+        if (off > 64) off -= 64;                   /* land just before a frame rather than after */
+        *pos = s->data_start + (off < bytes ? off : bytes);
+        flac_restart(s, *pos);
+        s->resync = ms > 0;
     } else {
         uint32_t bytes = s->data_end - s->data_start, off;
         if (s->has_toc && s->total_ms) {
@@ -621,10 +674,11 @@ au_result_t play_audio(const char *path)
     uint8_t magic[12] = { 0 };
     rd_at(s.f, 0, magic, sizeof magic);
     /* other formats saved with a playable extension */
-    const char *real = !memcmp(magic, "OggS", 4) ? "OGG" : !memcmp(magic, "fLaC", 4) ? "FLAC" :
+    const char *real = !memcmp(magic, "OggS", 4) ? "OGG" :
                        !memcmp(magic + 4, "ftyp", 4) ? "M4A/MP4" : !memcmp(magic, "FORM", 4) ? "AIFF" :
                        !memcmp(magic, "\x30\x26\xB2\x75", 4) ? "WMA" : NULL;
-    int r = real ? -4 : !memcmp(magic, "RIFF", 4) ? wav_open(&s, size) : mp3_open(&s, size);
+    bool flac = !memcmp(magic, "fLaC", 4) || (!memcmp(magic, "ID3", 3) && ext_is(path, (const char *const[]){ "flac", "fla", NULL }));
+    int r = real ? -4 : flac ? flac_open_src(&s, size) : !memcmp(magic, "RIFF", 4) ? wav_open(&s, size) : mp3_open(&s, size);
     if (r) {
         fclose(s.f);
         char l1[64];
@@ -644,6 +698,7 @@ au_result_t play_audio(const char *path)
     g_out_rate = 0;
     uint32_t pos = s.data_start;
     if (s.kind == SRC_MP3) mp3_restart(&s, pos);
+    if (s.kind == SRC_FLAC) flac_restart(&s, pos);
     set_rate(s.rate);
     fm_menu_hook = menu_hook;
     g_keys = 0;
@@ -683,7 +738,7 @@ au_result_t play_audio(const char *path)
                 HAL_Delay(5);
                 continue;
             }
-            n = s.kind == SRC_WAV ? wav_read(&s, &pos) : mp3_read(&s, &pos);
+            n = s.kind == SRC_WAV ? wav_read(&s, &pos) : s.kind == SRC_FLAC ? flac_read(&s) : mp3_read(&s, &pos);
             done = 0;
             if (n <= 0) { n = 0; ended = true; continue; }
         }
