@@ -172,6 +172,20 @@ void op_begin(const char *title, uint64_t total_bytes, uint32_t total_items)
     lcd_swap();
 }
 
+static bool op_tick(void);
+
+/* The bar again over the current screen (after a dialog), keeping the progress made so far */
+void op_resume(const char *title)
+{
+    op.title = title;
+    op.last_pct = -1;
+    lcd_sleep_while_swap_pending();
+    lcd_clone();
+    odroid_overlay_draw_progress_bar_cancellable(title, 0);   /* resets the B-to-cancel latch */
+    lcd_swap();
+    op_tick();
+}
+
 /* Called often: polls B (cancel), redraws the bar when the percentage moves. */
 static bool op_tick(void)
 {
@@ -368,6 +382,17 @@ op_result_t op_delete(const char *path)
     strncpy(g_a, path, FM_PATH_MAX - 1);
     g_a[FM_PATH_MAX - 1] = '\0';
     return delete_rec();
+}
+
+/* Deleting what a copy replaces: not part of the job's size, so it must not move the bar */
+op_result_t op_delete_uncounted(const char *path)
+{
+    uint64_t bytes = op.done_bytes;
+    uint32_t items = op.done_items;
+    op_result_t r = op_delete(path);
+    op.done_bytes = bytes;
+    op.done_items = items;
+    return r;
 }
 
 /* ================================================================ move */

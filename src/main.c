@@ -618,7 +618,8 @@ static void do_paste(void)
         }
         if (fs_is_dir(src) && path_is_inside(dst, src)) {
             ui_message(tr(T_ERROR), tr(T_INTO_ITSELF), path_base(src), NULL, false);
-            op_begin(tr(cut ? T_MOVING : T_COPYING), bytes, items);
+            draw_list();                       /* the bar goes over the list, not over the dialog */
+            op_resume(tr(cut ? T_MOVING : T_COPYING));
             continue;
         }
         if (fs_exists(dst)) {
@@ -633,10 +634,11 @@ static void do_paste(void)
             };
             dialog_prepare();
             int a = odroid_overlay_dialog(cut ? tr(T_MOVING) : tr(T_COPYING), ch, 4, &repaint_current, 0);
-            if (a == 2) continue;
+            draw_list();                       /* the bar goes over the list, not over the dialog */
+            if (a == 2) { op_resume(tr(cut ? T_MOVING : T_COPYING)); continue; }
             if (a != 1) { r = OP_CANCELLED; break; }
-            op_begin(tr(cut ? T_MOVING : T_COPYING), bytes, items);
-            r = op_delete(dst);
+            op_resume(tr(cut ? T_MOVING : T_COPYING));
+            r = op_delete_uncounted(dst);
             if (r != OP_OK) { failed = path_base(dst); break; }
         }
         r = cut ? op_move(src, dst) : op_copy(src, dst);
