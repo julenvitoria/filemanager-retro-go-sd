@@ -123,8 +123,9 @@ void kb_draw(void)
             const char *l = key_label(k, b);
             bool sel = (r == kb_row && c == kb_col);
             bool lit = (k->code == KC_SHIFT && g_shift);
-            uint16_t bg = sel ? C_SEL_BG : lit ? C_BAR : 0x4208;
-            uint16_t fg = sel ? C_SEL_TEXT : k->code ? C_DIR : C_TEXT;
+            /* Shift: green = next key only, red = locked; the colour stays under the cursor */
+            uint16_t bg = lit ? (g_shift == 2 ? C_SHIFT_LOCK : C_SHIFT_ONCE) : sel ? C_SEL_BG : 0x4208;
+            uint16_t fg = lit ? (sel ? C_SEL_BG : C_TEXT) : sel ? C_SEL_TEXT : k->code ? C_DIR : C_TEXT;
             int x = key_x(r, c), w = key_w(k), y = y0 + r * KEY_H;
             ui_fill(x, y, w, KEY_H - 1, bg);
             ui_text_px(x + 4, y + 1, l, fg, bg);
