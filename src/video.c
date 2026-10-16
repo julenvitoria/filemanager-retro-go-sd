@@ -306,7 +306,8 @@ static void ring_reset(void)
 
 static bool rate_supported(uint32_t r)
 {
-    static const uint32_t R[] = { 8000, 11025, 12000, 16000, 18000, 22050, 32000, 44100, 48000 };
+    /* 8000 and 11025 are left out: the SAI ran them too fast (the samples are doubled instead) */
+    static const uint32_t R[] = { 12000, 16000, 18000, 22050, 32000, 44100, 48000 };
     for (unsigned i = 0; i < sizeof R / sizeof R[0]; i++) if (R[i] == r) return true;
     return false;
 }
@@ -442,6 +443,11 @@ static frame_kind_t frame_kind(const uint8_t *d, uint32_t n)
 
 static bool frame_fits(const uint8_t *d, uint32_t n) { return frame_kind(d, n) == FR_OK; }
 
+/* file name across the top for the first seconds */
+static const char *g_vtitle;
+static uint32_t g_title_until;
+static bool title_visible(void) { return g_vtitle && (int32_t)(g_title_until - HAL_GetTick()) > 0; }
+
 static void show_frame(const avi_t *a, const uint8_t *data, bool osd, uint32_t frame, bool paused)
 {
     lcd_sleep_while_swap_pending();
@@ -451,6 +457,7 @@ static void show_frame(const avi_t *a, const uint8_t *data, bool osd, uint32_t f
     JPEG_DecodeToFrameInit((uint32_t)fm_scratch, YCBCR_SIZE);
     JPEG_DecodeToFrame((uint32_t)data, (uint32_t)fb, (uint16_t)((FM_W - a->w) / 2), (uint16_t)((FM_H - a->h) / 2), 255);
     if (osd) draw_osd(a, frame, paused);
+    if (title_visible()) ui_banner(g_vtitle, NULL);
     fm_overlay_draw();                       /* volume / brightness indicator (PAUSE+D-pad) */
     lcd_swap();
 }
@@ -627,6 +634,9 @@ void play_video(const char *path)
     PL.underrun = false;
     PL.shown_size = 0;
     PL.osd_until = HAL_GetTick() + 2500;
+    g_vtitle = title;
+    g_title_until = HAL_GetTick() + 3000;
+    bool title_on = true;
     uint32_t afb = sound ? audio_frame_bytes(&a) : 0;
     g_keys = 0;
 
@@ -655,6 +665,7 @@ void play_video(const char *path)
         if (k & K_B) break;
         if (k & K_REDRAW) redraw_shown();             /* back from the Retro-Go menu */
         if (fm_overlay_expired() && PL.paused) redraw_shown();   /* indicator gone */
+        if (title_on && !title_visible()) { title_on = false; if (PL.paused) redraw_shown(); }
         if (k & K_A) {
             if (!PL.paused) { PL.base_us = clock_us(); PL.paused = true; }
             else { PL.paused = false; PL.tick0 = HAL_GetTick(); PL.underrun = false;
@@ -736,6 +747,7 @@ void play_video(const char *path)
     }
 
     fm_menu_hook = NULL;
+    g_vtitle = NULL;
     fm_overlay_clear();
     if (sound) {
         pcm_audio_enable(0);
