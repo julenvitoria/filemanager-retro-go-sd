@@ -340,9 +340,9 @@ Tested in the gwemu emulator, with the `external_cores` firmware with and withou
 - text editor: typing, deleting, moving, Shift, saving (CRLF and UTF-8 intact), exiting without
   saving and creating a new file.
 
-On the console: the file features (browsing, copying and overwriting, moving, renaming,
-deleting…), the image viewer, the video player (PCM and MP3 sound) and the audio player. The
-text and hex editors, so far, only in the emulator.
+Everything has also been tested on the console: the file features (browsing, copying and
+overwriting, moving, renaming, deleting…), the text and hex editors with their keyboards, the
+image viewer, the video player (PCM and MP3 sound) and the audio player.
 
 ## License
 
