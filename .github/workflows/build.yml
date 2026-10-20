@@ -1,0 +1,53 @@
+name: Build FileManager
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Download ARM Toolchain 15.2
+        run: |
+          wget -O toolchain.tar.xz \
+          https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/15.2.rel1/arm-gnu-toolchain-15.2.rel1-x86\_64-arm-none-eabi.tar.xz
+
+      - name: Extract Toolchain
+        run: |
+          tar -xf toolchain.tar.xz
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install pillow
+
+      - name: Build
+        run: |
+          TOOLCHAIN_DIR=$(find . -maxdepth 1 -type d -name "arm-gnu-toolchain-*")
+          make GCC_PATH=$TOOLCHAIN_DIR/bin
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: filemanager-build
+          path: |
+            build/FileManager.bin
+            build/*.elf
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/FileManager.bin
