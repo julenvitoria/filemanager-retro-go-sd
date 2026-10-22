@@ -303,7 +303,15 @@ programa arranca también en firmwares sin las funciones nuevas).
 
 ## Código
 
+Los visores y reproductores son **overlays**: no están en la RAM todo el tiempo. Cada grupo
+(visores/editores de texto y hexadecimal; visor de imágenes; reproductores de vídeo y audio) se
+enlaza en la misma ventana de RAM y va guardado detrás del programa en `FileManager.bin`; al abrir
+un archivo se carga en esa ventana el que necesita. Sigue siendo un solo archivo para instalar y
+deja unos 78 KB de RAM libres para cosas nuevas. Ver `ld/filemanager.ld`, `src/ovl.c` y
+`tools/append_overlays.py`.
+
 - `src/main.c`: lista, menús, portapapeles, acciones, entrada.
+- `src/ovl.c`: carga los overlays; `src/filetypes.c`: qué visor abre cada archivo.
 - `src/fsops.c`: rutas y operaciones recursivas (copiar, mover, borrar, contar) con progreso.
 - `src/osk.c`: teclado de nombres (pantalla completa).
 - `src/kbd.c`: teclado acoplado abajo (texto, hexadecimal y columna de texto del editor hex).

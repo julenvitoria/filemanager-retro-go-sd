@@ -14,6 +14,8 @@ CORE_ENTRY := app_main
 
 CORE_C_SOURCES := \
 src/main.c \
+src/ovl.c \
+src/filetypes.c \
 src/fsops.c \
 src/osk.c \
 src/viewer.c \
@@ -30,6 +32,10 @@ CORE_C_INCLUDES := -Isrc
 CORE_C_DEFS := -DPROJECT_KIND_HOMEBREW=1 -DMINIZ_NO_MALLOC -DMINIZ_NO_STDIO -DMINIZ_NO_TIME
 
 GNW_CORE_SDK ?= sdk
+
+# Viewers and players are overlays loaded on demand (ld/filemanager.ld, src/ovl.c)
+CORE_LDSCRIPT := ld/filemanager.ld
+FM_OVERLAYS := text image media
 BUILD_DIR ?= build
 
 PACKED_BIN := FileManager.bin
@@ -56,7 +62,11 @@ sz=Path('$(COVER_JPG)').stat().st_size; \
 assert sz <= 10*1024, f'cover too big: {sz}'"
 
 PACK_HOMEBREW := $(GNW_CORE_SDK)/tools/pack_homebrew.py
-pack: $(TARGET_BIN) $(if $(wildcard $(COVER_SRC)),$(COVER_JPG))
+# Each overlay out of the ELF (code + data; the packer drops the trailing BSS)
+$(BUILD_DIR)/ovl_%.bin: $(TARGET_ELF)
+	$(V)$(CP) -O binary --only-section=.fm_ovl_$* $< $@
+
+pack: $(TARGET_BIN) $(addprefix $(BUILD_DIR)/ovl_,$(addsuffix .bin,$(FM_OVERLAYS))) $(if $(wildcard $(COVER_SRC)),$(COVER_JPG))
 	$(V)$(ECHO) [ PACK GWHB ] "$(PACKED_BIN)" version=$(CORE_VERSION)
 	$(V)python3 $(PACK_HOMEBREW) \
 		--nm $(if $(GCC_PATH),$(GCC_PATH)/)arm-none-eabi-nm \
@@ -64,6 +74,10 @@ pack: $(TARGET_BIN) $(if $(wildcard $(COVER_SRC)),$(COVER_JPG))
 		--name "$(HB_NAME)" --version "$(CORE_VERSION)" \
 		$(if $(wildcard $(COVER_SRC)),--cover $(COVER_JPG)) \
 		--out "$(BUILD_DIR)/$(PACKED_BIN)"
+	$(V)python3 tools/append_overlays.py \
+		--nm $(if $(GCC_PATH),$(GCC_PATH)/)arm-none-eabi-nm \
+		--elf $(TARGET_ELF) --bin "$(BUILD_DIR)/$(PACKED_BIN)" \
+		$(foreach o,$(FM_OVERLAYS),$(o)=$(BUILD_DIR)/ovl_$(o).bin)
 
 all: pack
 

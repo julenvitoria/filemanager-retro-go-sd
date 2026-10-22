@@ -9,24 +9,6 @@
 
 extern void wdog_refresh(void);
 
-static bool ext_is(const char *name, const char *const *list)
-{
-    const char *dot = strrchr(name, '.');
-    if (!dot)
-        return false;
-    for (; *list; list++)
-        if (strcasecmp(dot + 1, *list) == 0)
-            return true;
-    return false;
-}
-
-bool is_text_ext(const char *name)
-{
-    static const char *const L[] = { "txt", "cfg", "ini", "log", "md", "json", "xml", "csv", "nfo",
-                                     "c", "h", "py", "sh", "lua", "p8", "cue", "m3u", "dat", "pceplus",
-                                     "ggcodes", "mcf", "yml", "yaml", "htm", "html", NULL };
-    return ext_is(name, L);
-}
 
 /* ================================================================ text */
 
