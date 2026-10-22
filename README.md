@@ -302,7 +302,7 @@ starts on firmware without the new functions).
 The viewers and players are **overlays**: they are not kept in RAM all the time. Each group (text
 and hex viewers/editors; image viewer; video and audio players) is linked to the same RAM window
 and stored after the program in `FileManager.bin`; the one a file needs is read into the window
-when it is opened. It is still a single file to install, and it leaves ~78 KB of RAM free for
+when it is opened. It is still a single file to install, and it leaves ~93 KiB of RAM free for
 new features. See `ld/filemanager.ld`, `src/ovl.c` and `tools/append_overlays.py`.
 
 - `src/main.c`: list, menus, clipboard, actions, input.
