@@ -307,7 +307,7 @@ Los visores y reproductores son **overlays**: no están en la RAM todo el tiempo
 (visores/editores de texto y hexadecimal; visor de imágenes; reproductores de vídeo y audio) se
 enlaza en la misma ventana de RAM y va guardado detrás del programa en `FileManager.bin`; al abrir
 un archivo se carga en esa ventana el que necesita. Sigue siendo un solo archivo para instalar y
-deja unos 78 KB de RAM libres para cosas nuevas. Ver `ld/filemanager.ld`, `src/ovl.c` y
+deja unos 93 KiB de RAM libres para cosas nuevas. Ver `ld/filemanager.ld`, `src/ovl.c` y
 `tools/append_overlays.py`.
 
 - `src/main.c`: lista, menús, portapapeles, acciones, entrada.
