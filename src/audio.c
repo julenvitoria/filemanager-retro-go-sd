@@ -66,21 +66,13 @@ static int16_t *const g_pcm = (int16_t *)(fm_scratch + OFF_PCM);
 
 /* ---------------------------------------------------------------- file types */
 
+/* (is_audio_ext and the playable list are in filetypes.c, resident) */
 static bool ext_is(const char *name, const char *const *list)
 {
     const char *dot = strrchr(name, '.');
     if (!dot) return false;
     for (; *list; list++) if (strcasecmp(dot + 1, *list) == 0) return true;
     return false;
-}
-static const char *const PLAYABLE[] = { "wav", "wave", "mp3", "mp2", "mpa", "flac", "fla", "aif", "aiff", "aifc", NULL };
-static const char *const OTHER[]    = { "ogg", "oga", "opus", "m4a", "aac", "wma",
-                                        "ape", "wv", "mid", "midi", "mod", "xm", "s3m", "it", "amr", "ac3", NULL };
-
-bool is_audio_ext(const char *name)
-{
-    if (is_macos_meta(name)) return false;
-    return ext_is(name, PLAYABLE) || ext_is(name, OTHER);
 }
 
 /* ---------------------------------------------------------------- source */
@@ -828,7 +820,7 @@ static void seek_to(src_t *s, uint32_t *pos, int64_t ms)
 au_result_t play_audio(const char *path)
 {
     const char *name = path_base(path);
-    if (!ext_is(path, PLAYABLE)) {
+    if (!is_audio_playable_ext(path)) {
         const char *dot = strrchr(path, '.');
         char l1[64];
         snprintf(l1, sizeof l1, "%s: %s", tr(T_AUD_FORMAT), dot ? dot + 1 : "?");

@@ -103,6 +103,7 @@ static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_AUD_CONVERT]    = S("Convert it to MP3 or WAV (see README)", "Conviértelo a MP3 o WAV (ver README)"),
     [T_AUD_CODEC]      = S("WAV encoding not supported", "Codificación WAV no soportada"),
     [T_AUD_BROKEN]     = S("Cannot play this file", "No se puede reproducir el archivo"),
+    [T_OVL_MISSING]    = S("FileManager.bin incomplete: copy it again", "FileManager.bin incompleto: copialo de nuevo"),
     [T_AUD_EMPTY]      = S("The file has no audio in it", "El archivo no contiene audio"),
     [T_AUD_DOWNLOAD]   = S("Bad download? Get it again", "¿Descarga incompleta? Bájalo de nuevo"),
     [T_CANCELLED]      = S("Cancelled", "Cancelado"),
@@ -800,6 +801,7 @@ static void view_images(void)
         char p[FM_PATH_MAX];
         path_join(p, g_cwd, ename(&g_ent[g_cursor]));
         img_result_t r;
+        if (!fm_ovl_use(OVL_IMAGE)) return;
         uint32_t k = view_image(p, &r);
         if (r != IMG_OK) {
             draw_list();
@@ -833,6 +835,7 @@ static void play_audios(void)
     for (;;) {
         char p[FM_PATH_MAX];
         path_join(p, g_cwd, ename(&g_ent[g_cursor]));
+        if (!fm_ovl_use(OVL_MEDIA)) break;
         au_result_t r = play_audio(p);
         if (r == AU_STOP || r == AU_ERROR) break;
         int d = r == AU_PREV ? -1 : 1, j = -1;
@@ -860,13 +863,15 @@ static void open_entry(bool force_text, bool force_hex)
     if (e->dir) return;
     char name[256];
     snprintf(name, sizeof name, "%s", ename(e));
-    if (force_hex) view_hex(p);
-    else if (force_text) view_text(p);
-    else if (is_image_file(p)) { view_images(); return; }
-    else if (is_video_ext(p)) play_video(p);
-    else if (is_audio_ext(p)) { play_audios(); return; }
-    else if (is_text_ext(p)) view_text(p);
-    else view_hex(p);
+    if (is_image_file(p) && !force_text && !force_hex) { view_images(); return; }
+    if (is_audio_ext(p) && !force_text && !force_hex) { play_audios(); return; }
+    if (is_video_ext(p) && !force_text && !force_hex) {
+        if (fm_ovl_use(OVL_MEDIA)) play_video(p);
+    } else if (fm_ovl_use(OVL_TEXT)) {
+        if (force_hex) view_hex(p);
+        else if (force_text || is_text_ext(p)) view_text(p);
+        else view_hex(p);
+    }
     load_dir(name);          /* the file may have been edited: refresh size and date */
 }
 
@@ -876,7 +881,7 @@ static void do_edit(void)
     char p[FM_PATH_MAX], name[256];
     snprintf(name, sizeof name, "%s", ename(&g_ent[g_cursor]));
     path_join(p, g_cwd, name);
-    edit_text(p);
+    if (fm_ovl_use(OVL_TEXT)) edit_text(p);
     load_dir(name);
 }
 
@@ -895,7 +900,7 @@ static void do_newfile(void)
     FILE *f = fopen(p, "wb");
     if (!f) { draw_list(); ui_message(tr(T_ERROR), name, NULL, NULL, false); return; }
     fclose(f);
-    edit_text(p);
+    if (fm_ovl_use(OVL_TEXT)) edit_text(p);
     load_dir(name);
 }
 

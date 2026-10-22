@@ -42,7 +42,7 @@ enum {
     T_ED_EXIT, T_ED_LOSE, T_ED_TOO_BIG, T_ED_FULL, T_TEXT_HELP,
     T_IMG_PROGRESSIVE, T_IMG_TOO_BIG, T_IMG_BROKEN, T_LOADING,
     T_VID_FORMAT, T_VID_CONVERT, T_VID_CODEC, T_VID_SIZE, T_VID_NO_AUDIO, T_VID_SUBSAMPLING,
-    T_AUD_FORMAT, T_AUD_CONVERT, T_AUD_CODEC, T_AUD_BROKEN, T_AUD_EMPTY, T_AUD_DOWNLOAD,
+    T_AUD_FORMAT, T_AUD_CONVERT, T_AUD_CODEC, T_AUD_BROKEN, T_OVL_MISSING, T_AUD_EMPTY, T_AUD_DOWNLOAD,
     T_COUNT
 };
 
@@ -72,6 +72,10 @@ bool fm_overlay_expired(void);
 void fm_overlay_draw(void);          /* the indicator over the active buffer */
 void fm_overlay_clear(void);       /* true once when the volume/brightness indicator times out */
 extern void (*fm_menu_hook)(bool entering);   /* called around the Retro-Go menu (video: mute) */          /* 320x240 RGB565 buffer (the dialog background; free while viewing) */
+
+/* ------------------------------------------------------------------ overlays (ovl.c) */
+enum { OVL_TEXT, OVL_IMAGE, OVL_MEDIA };
+bool fm_ovl_use(int id);            /* load that group of viewers into the overlay window */
 
 /* ------------------------------------------------------------------ paths (fsops.c) */
 void path_join(char *out, const char *dir, const char *name);
@@ -111,7 +115,8 @@ bool is_image_file(const char *path);   /* by extension, plus .img covers by con
 bool is_macos_meta(const char *name);  /* "._name" AppleDouble files from macOS */
 bool is_video_ext(const char *name);   /* video.c */
 void play_video(const char *path);
-bool is_audio_ext(const char *name);   /* audio.c: files the player opens (or explains) */
+bool is_audio_ext(const char *name);   /* files the audio player opens (or explains) */
+bool is_audio_playable_ext(const char *name);
 typedef enum { AU_STOP, AU_END, AU_NEXT, AU_PREV, AU_ERROR } au_result_t;
 au_result_t play_audio(const char *path);   /* shows its own error messages */
 bool is_text_ext(const char *name);

@@ -417,7 +417,7 @@ static void mp3_decode_acc(bool flush)
     g_acc_len -= at;
 }
 
-static void mp3_feed(const avi_t *a, uint32_t off, uint32_t size)
+static void mp3_feed(avi_t *a, uint32_t off, uint32_t size)
 {
     while (size) {
         if (g_acc_len == V_ACC_SIZE) g_acc_len = 0;          /* full of something undecodable */
@@ -618,15 +618,6 @@ static void redraw_shown(void)
 
 static void player_idle(void) { try_show(); }
 
-bool is_video_ext(const char *name)
-{
-    if (is_macos_meta(name)) return false;
-    const char *dot = strrchr(name, '.');
-    if (!dot) return false;
-    static const char *const L[] = { "avi", "mp4", "m4v", "mkv", "mov", "webm", "wmv", "flv", "mpg", "mpeg", "3gp", "ts", NULL };
-    for (const char *const *l = L; *l; l++) if (strcasecmp(dot + 1, *l) == 0) return true;
-    return false;
-}
 
 void play_video(const char *path)
 {
