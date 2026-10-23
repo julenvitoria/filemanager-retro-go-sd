@@ -15,7 +15,7 @@ tarjeta SD desde la propia consola: copiar, mover, renombrar, borrar, ver y edit
   (también las capturas del firmware).
 - **Ver vídeos**: AVI con vídeo Motion-JPEG y sonido PCM o MP3 (los tuyos se convierten con un comando de
   ffmpeg).
-- **Escuchar música**: MP3 (también MP2), FLAC, WAV y AIFF, siguiendo con el siguiente archivo de la carpeta.
+- **Escuchar música**: MP3 (también MP2), FLAC, OGG Vorbis, WAV y AIFF, siguiendo con el siguiente archivo de la carpeta.
 - **Editar texto** (`.txt`, `.cfg`, `.ini`…) con un teclado en pantalla.
 - **Editar en hexadecimal** cualquier archivo, con un teclado hexadecimal.
 - **Información** de archivos y carpetas, y de la **tarjeta SD** (capacidad, usado, libre).
@@ -53,7 +53,7 @@ Al pulsar **A** sobre un archivo:
 - `.jpg`, `.png`, `.gif`, `.bmp` → visor de imágenes; también las carátulas `.img` de Retro-Go
   (`/covers/...`), reconocidas por su contenido (otros `.img`, como imágenes de disco, se abren en hex);
 - `.avi` → reproductor de vídeo (`.mp4`, `.mkv`, `.mov`… explican cómo convertirlos);
-- `.mp3`, `.mp2`, `.flac`, `.wav`, `.aiff` → reproductor de audio (`.ogg`, `.m4a`… explican cómo convertirlos);
+- `.mp3`, `.mp2`, `.flac`, `.ogg`, `.oga`, `.wav`, `.aiff` → reproductor de audio (`.opus`, `.m4a`… explican cómo convertirlos);
 - `.txt`, `.cfg`, `.ini`, `.log`, `.json`, `.xml`, `.csv`, `.md`, `.c`, `.h`… → visor de texto;
 - cualquier otro → visor hexadecimal.
 
@@ -233,12 +233,12 @@ archivos más pequeños: usa `-c:a libmp3lame -b:a 96k -ar 22050 -ac 1` en lugar
 ## 9. El reproductor de audio
 
 Reproduce **MP3** (MPEG-1/2/2.5 capa 3, CBR o VBR; también capas 1 y 2, `.mp2`), **FLAC** (hasta 24
-bits, cualquier nivel de compresión) **WAV** (PCM de 8, 16, 24 y 32 bits, coma flotante de 32
+bits, cualquier nivel de compresión), **OGG Vorbis** (cualquier calidad, mono o estéreo), **WAV** (PCM de 8, 16, 24 y 32 bits, coma flotante de 32
 bits, A-law, µ-law, ADPCM IMA y de Microsoft) y **AIFF/AIFC**, mono o estéreo, a cualquier frecuencia. La consola tiene un solo altavoz, así que el estéreo se mezcla a mono.
 
 En pantalla salen la onda que está sonando, el tiempo y la duración con una barra de progreso, y
 el formato. Durante los 3 primeros segundos (y en pausa) una barra arriba muestra el título y el
-artista de las etiquetas de la canción (ID3 o FLAC), o el nombre del archivo.
+artista de las etiquetas de la canción (ID3, FLAC u OGG), o el nombre del archivo.
 
 | Botón | Acción |
 |---|---|
@@ -252,8 +252,8 @@ artista de las etiquetas de la canción (ID3 o FLAC), o el nombre del archivo.
 | PAUSE/SET + cruceta | Volumen / brillo, con el indicador |
 
 Cuando un archivo termina (o saltas más allá del final) suena el siguiente archivo de audio de la
-carpeta, así que una carpeta funciona como un álbum. Otros formatos (OGG, Opus, M4A/AAC,
-WMA…) dan un aviso, igual que los archivos sin audio (como una
+carpeta, así que una carpeta funciona como un álbum. Otros formatos (Opus, M4A/AAC,
+WMA…, y OGG de más de 2 canales) dan un aviso, igual que los archivos sin audio (como una
 descarga fallida que solo guardó las etiquetas y la carátula) y otros formatos renombrados a
 `.mp3`; conviértelos con [ffmpeg](https://ffmpeg.org/):
 
@@ -307,7 +307,8 @@ Los visores y reproductores son **overlays**: no están en la RAM todo el tiempo
 (visores/editores de texto y hexadecimal; visor de imágenes; reproductores de vídeo y audio) se
 enlaza en la misma ventana de RAM y va guardado detrás del programa en `FileManager.bin`; al abrir
 un archivo se carga en esa ventana el que necesita. Sigue siendo un solo archivo para instalar y
-deja unos 93 KiB de RAM libres para cosas nuevas. Ver `ld/filemanager.ld`, `src/ovl.c` y
+deja unos 75 KiB de RAM libres para cosas nuevas (la ventana mide 74 KiB, lo que ocupa el overlay
+más grande, el de vídeo y audio con OGG). Ver `ld/filemanager.ld`, `src/ovl.c` y
 `tools/append_overlays.py`.
 
 - `src/main.c`: lista, menús, portapapeles, acciones, entrada.
@@ -319,11 +320,13 @@ deja unos 93 KiB de RAM libres para cosas nuevas. Ver `ld/filemanager.ld`, `src/
 - `src/viewer.c`: visores de texto y hexadecimal (con el editor hexadecimal).
 - `src/image.c`: visor de imágenes (JPEG, PNG, GIF, BMP) con un escalado por bandas.
 - `src/video.c`: reproductor de vídeo AVI/MJPEG.
-- `src/audio.c`: reproductor de audio MP3/FLAC/WAV; `src/flac.c`: un decodificador FLAC propio y
-  pequeño.
+- `src/audio.c`: reproductor de audio MP3/FLAC/OGG/WAV; `src/flac.c`: un decodificador FLAC propio y
+  pequeño; `src/ogg.c`: OGG Vorbis con stb_vorbis, con su memoria en el búfer compartido.
 - `src/third_party/`: [picojpeg](https://github.com/richgel999/picojpeg) (dominio público) y la
   parte de descompresión de [miniz](https://github.com/richgel999/miniz) (MIT), para JPEG y PNG;
-  [minimp3](https://github.com/lieff/minimp3) (CC0) para MP3.
+  [minimp3](https://github.com/lieff/minimp3) (CC0) para MP3;
+  [stb_vorbis](https://github.com/nothings/stb) (dominio público, la copia del
+  [pce-go-retro-go-sd](https://github.com/sylverb/pce-go-retro-go-sd) de sylverb) para OGG.
 
 ## Estado
 
@@ -340,8 +343,10 @@ Probado en el emulador gwemu, con el firmware `external_cores` con el cambio y s
 - reproductor de audio: MP3 CBR/VBR/mono/22-48 kHz, MP2, WAV de 8/16/24 bits, flotante, A-law,
   µ-law, FLAC de 16/24 bits, mono, todos los modos estéreo y bloques de 8192 muestras (todos
   comparados muestra a muestra con ffmpeg), títulos ID3v1/v2, saltos, pausa,
-  siguiente/anterior y final de archivo, el menú de Retro-Go y el indicador de volumen, y los
-  avisos de OGG; WAV ADPCM IMA/MS y AIFF/AIFC (también comparados con ffmpeg); vídeo AVI con
+  siguiente/anterior y final de archivo, el menú de Retro-Go y el indicador de volumen;
+  OGG Vorbis de 11 a 48 kHz, mono y estéreo, calidad 0 a 10 (comparado con ffmpeg), sus
+  etiquetas, una carátula dentro de las etiquetas, un archivo cortado y los avisos de Opus y de 6
+  canales; WAV ADPCM IMA/MS y AIFF/AIFC (también comparados con ffmpeg); vídeo AVI con
   sonido MP3;
 - copia de carpetas con subcarpetas: resultado idéntico byte a byte;
 - mover (instantáneo y por copia + borrado);
@@ -362,4 +367,4 @@ imágenes, el reproductor de vídeo (sonido PCM y MP3) y el de audio.
 ## Licencia
 
 MIT (ver `LICENSE`). Las cabeceras de `sdk/include/` mantienen sus licencias originales; picojpeg
-es de dominio público, miniz es MIT y minimp3 es CC0 (`src/third_party/`).
+es de dominio público, miniz es MIT, minimp3 es CC0 y stb_vorbis es de dominio público (`src/third_party/`).
