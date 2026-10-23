@@ -1,6 +1,6 @@
 /*
  * File Manager — audio player: WAV (PCM 8/16/24/32-bit, float, A-law, µ-law), MP3
- * (also MPEG layer 1/2) decoded with minimp3 (CC0), and FLAC (flac.c).
+ * (also MPEG layer 1/2) decoded with minimp3 (CC0), FLAC (flac.c) and Ogg Vorbis (ogg.c).
  *
  * The sound goes to the firmware's PCM ring (pcm_attach), mono, at the file's rate when the
  * SAI supports it (linear resampling otherwise). Controls as in the video player:
@@ -13,6 +13,7 @@
 #include <strings.h>
 #include "fm.h"
 #include "flac.h"
+#include "ogg.h"
 
 extern void wdog_refresh(void);
 extern uint32_t HAL_GetTick(void);
@@ -43,6 +44,9 @@ void    *lcd_get_active_buffer(void);
 #define FIN_SIZE     (OFF_PCM - OFF_DEC)                 /* 60 KB */
 #define OFF_FCH      OFF_END                             /* 2 x 32 KB */
 #define FCH_BYTES    (FLAC_MAX_BLOCK * 4)
+/* OGG: its samples after the ring, then the file buffer and stb_vorbis's arena (144 KB) */
+#define OFF_OPCM     (32 * 1024)
+#define OFF_OMEM     (OFF_OPCM + PCM_BYTES)
 
 #define MINIMP3_IMPLEMENTATION
 #define MINIMP3_NO_SIMD
@@ -58,10 +62,11 @@ _Static_assert(MINIMP3_MAX_SAMPLES_PER_FRAME * 2 <= PCM_BYTES, "pcm buffer");
 _Static_assert(OFF_END <= FM_SCRATCH_SIZE, "fm_scratch too small");
 _Static_assert(OFF_FCH + 2 * FCH_BYTES <= FM_SCRATCH_SIZE, "fm_scratch too small for FLAC");
 _Static_assert(FLAC_MAX_BLOCK * 2 <= PCM_BYTES, "pcm buffer (FLAC)");
+_Static_assert(OFF_OMEM + 140 * 1024 <= FM_SCRATCH_SIZE, "fm_scratch too small for OGG");
 
 static int16_t *const g_ring = (int16_t *)(fm_scratch + OFF_RING);
 static uint8_t *const g_in = fm_scratch + OFF_IN;
-static int16_t *const g_pcm = (int16_t *)(fm_scratch + OFF_PCM);
+static int16_t *g_pcm;                                   /* decoded samples (OFF_PCM, OGG: OFF_OPCM) */
 #define g_dec ((mp3dec_t *)(fm_scratch + OFF_DEC))
 
 /* ---------------------------------------------------------------- file types */
@@ -77,7 +82,7 @@ static bool ext_is(const char *name, const char *const *list)
 
 /* ---------------------------------------------------------------- source */
 
-enum { SRC_WAV, SRC_MP3, SRC_FLAC };
+enum { SRC_WAV, SRC_MP3, SRC_FLAC, SRC_OGG };
 enum { W_PCM, W_FLOAT, W_ALAW, W_ULAW, W_IMA, W_MSADPCM };
 
 typedef struct {
@@ -97,8 +102,9 @@ typedef struct {
     uint8_t toc[100]; bool has_toc;
     uint32_t in_len, in_pos;                 /* g_in window */
     bool eof;
-    /* FLAC */
+    /* FLAC / OGG */
     flac_info_t fi;
+    ogg_info_t oi;
     bool resync;                             /* after a seek: take the time from the next frame */
     /* tags */
     char title[96], artist[96];
@@ -718,7 +724,7 @@ static void draw(void)
         ui_fill(x0, FM_H - 9, w, 4, 0x4208);
         ui_fill(x0, FM_H - 9, (int)((uint64_t)w * cur / tot), 4, C_SEL_BG);
     }
-    snprintf(line, sizeof line, "%s  %lu Hz  %s", s->kind == SRC_MP3 ? "MP3" : s->kind == SRC_FLAC ? "FLAC" : s->s8 ? "AIFF" :
+    snprintf(line, sizeof line, "%s  %lu Hz  %s", s->kind == SRC_MP3 ? "MP3" : s->kind == SRC_FLAC ? "FLAC" : s->kind == SRC_OGG ? "OGG" : s->s8 ? "AIFF" :
              s->wfmt >= W_IMA ? "ADPCM" : "WAV", (unsigned long)s->rate,
              s->channels == 1 ? "mono" : "stereo");
     ui_text_px((FM_W - (int)strlen(line) * 8) / 2, FM_H - 28, line, C_DIM, C_BG);
@@ -783,6 +789,38 @@ static int flac_read(src_t *s)
     return n;
 }
 
+/* ---------------------------------------------------------------- OGG glue */
+
+/* what an Ogg file holds, from its first packet: NULL for Vorbis */
+static const char *ogg_codec(FILE *f)
+{
+    uint8_t h[64] = { 0 };
+    rd_at(f, 0, h, sizeof h);
+    uint32_t at = 27 + h[26];                     /* after the first page's segment table */
+    if (at + 8 > sizeof h) return NULL;
+    const uint8_t *p = h + at;
+    if (!memcmp(p, "OpusHead", 8)) return "OPUS";
+    if (!memcmp(p, "\x7F" "FLAC", 5)) return "OGG FLAC";
+    if (!memcmp(p, "Speex", 5)) return "SPEEX";
+    if (!memcmp(p, "\x80theora", 7)) return "OGG THEORA";
+    return NULL;
+}
+
+static int ogg_open_src(src_t *s, uint32_t size)
+{
+    int r = ogg_open(s->f, size, fm_scratch + OFF_OMEM, FM_SCRATCH_SIZE - OFF_OMEM, &s->oi);
+    if (r) return r;
+    s->kind = SRC_OGG;
+    s->rate = s->oi.rate;
+    s->channels = s->oi.channels;
+    s->data_start = 0;
+    s->data_end = size;
+    s->total_ms = (uint32_t)((uint64_t)s->oi.total * 1000 / s->oi.rate);
+    snprintf(s->title, sizeof s->title, "%s", s->oi.title);
+    snprintf(s->artist, sizeof s->artist, "%s", s->oi.artist);
+    return 0;
+}
+
 /* ---------------------------------------------------------------- player */
 
 static void seek_to(src_t *s, uint32_t *pos, int64_t ms)
@@ -794,6 +832,9 @@ static void seek_to(src_t *s, uint32_t *pos, int64_t ms)
         *pos = s->data_start + (uint32_t)(block * s->align);
         if (*pos > s->data_end) *pos = s->data_end;
         ms = (int64_t)(block * s->spb * 1000 / s->rate);
+    } else if (s->kind == SRC_OGG) {
+        uint32_t at = ogg_seek((uint32_t)((uint64_t)ms * s->rate / 1000));
+        ms = (int64_t)((uint64_t)at * 1000 / s->rate);
     } else if (s->kind == SRC_FLAC) {
         uint32_t bytes = s->data_end - s->data_start;
         uint32_t off = s->total_ms ? (uint32_t)((uint64_t)bytes * (uint64_t)ms / s->total_ms) : 0;
@@ -835,11 +876,13 @@ au_result_t play_audio(const char *path)
     uint8_t magic[12] = { 0 };
     rd_at(s.f, 0, magic, sizeof magic);
     /* other formats saved with a playable extension */
-    const char *real = !memcmp(magic, "OggS", 4) ? "OGG" :
+    bool ogg = !memcmp(magic, "OggS", 4);
+    const char *real = ogg ? ogg_codec(s.f) :
                        !memcmp(magic + 4, "ftyp", 4) ? "M4A/MP4" :
                        !memcmp(magic, "\x30\x26\xB2\x75", 4) ? "WMA" : NULL;
     bool flac = !memcmp(magic, "fLaC", 4) || (!memcmp(magic, "ID3", 3) && ext_is(path, (const char *const[]){ "flac", "fla", NULL }));
-    int r = real ? -4 : flac ? flac_open_src(&s, size) : !memcmp(magic, "RIFF", 4) ? wav_open(&s, size) :
+    g_pcm = (int16_t *)(fm_scratch + (ogg ? OFF_OPCM : OFF_PCM));
+    int r = real ? -4 : ogg ? ogg_open_src(&s, size) : flac ? flac_open_src(&s, size) : !memcmp(magic, "RIFF", 4) ? wav_open(&s, size) :
             !memcmp(magic, "FORM", 4) ? aiff_open(&s, size) : mp3_open(&s, size);
     if (r) {
         fclose(s.f);
@@ -847,7 +890,8 @@ au_result_t play_audio(const char *path)
         if (r == -4) {
             snprintf(l1, sizeof l1, "%s: %s", tr(T_AUD_FORMAT), real);
             ui_message(name, l1, tr(T_AUD_CONVERT), NULL, false);
-        } else if (r == -3) ui_message(name, tr(T_AUD_EMPTY), tr(T_AUD_DOWNLOAD), NULL, false);
+        } else if (r == -2 && ogg) ui_message(name, tr(T_AUD_OGG_BIG), tr(T_AUD_CONVERT), NULL, false);
+        else if (r == -3) ui_message(name, tr(T_AUD_EMPTY), tr(T_AUD_DOWNLOAD), NULL, false);
         else ui_message(name, tr(r == -2 ? T_AUD_CODEC : T_AUD_BROKEN), tr(T_AUD_CONVERT), NULL, false);
         return AU_ERROR;
     }
@@ -901,7 +945,8 @@ au_result_t play_audio(const char *path)
                 HAL_Delay(5);
                 continue;
             }
-            n = s.kind == SRC_WAV ? wav_read(&s, &pos) : s.kind == SRC_FLAC ? flac_read(&s) : mp3_read(&s, &pos);
+            n = s.kind == SRC_WAV ? wav_read(&s, &pos) : s.kind == SRC_FLAC ? flac_read(&s) :
+                s.kind == SRC_OGG ? ogg_read(g_pcm, 2048) : mp3_read(&s, &pos);
             done = 0;
             if (n <= 0) { n = 0; ended = true; continue; }
         }
@@ -913,6 +958,7 @@ au_result_t play_audio(const char *path)
     pcm_audio_enable(0);
     pcm_audio_set(0, 0);
     audio_stop_playing();
+    if (s.kind == SRC_OGG) ogg_close();
     fclose(s.f);
     return res;
 }

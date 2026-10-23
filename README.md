@@ -14,7 +14,7 @@ from the console itself: copy, move, rename, delete, view and edit files.
 - **View** text files, hex dumps and **images**: JPEG, PNG, GIF (animated too) and BMP (also the
   firmware's screenshots).
 - **Play videos**: AVI with Motion-JPEG video and PCM or MP3 sound (convert yours with one ffmpeg command).
-- **Play music**: MP3 (also MP2), FLAC, WAV and AIFF, going on with the next file of the folder.
+- **Play music**: MP3 (also MP2), FLAC, OGG Vorbis, WAV and AIFF, going on with the next file of the folder.
 - **Edit text** (`.txt`, `.cfg`, `.ini`…) with an on-screen keyboard.
 - **Hex-edit** any file, with a hex keypad.
 - **Information** about files and folders, and about the **SD card** (capacity, used, free).
@@ -52,7 +52,7 @@ Pressing **A** on a file opens:
 - `.jpg`, `.png`, `.gif`, `.bmp` → image viewer; also the `.img` cover thumbnails of Retro-Go
   (`/covers/...`), recognised by their content (other `.img` files, such as disk images, open in hex);
 - `.avi` → video player (`.mp4`, `.mkv`, `.mov`… show how to convert them);
-- `.mp3`, `.mp2`, `.flac`, `.wav`, `.aiff` → audio player (`.ogg`, `.m4a`… show how to convert them);
+- `.mp3`, `.mp2`, `.flac`, `.ogg`, `.oga`, `.wav`, `.aiff` → audio player (`.opus`, `.m4a`… show how to convert them);
 - `.txt`, `.cfg`, `.ini`, `.log`, `.json`, `.xml`, `.csv`, `.md`, `.c`, `.h`… → text viewer;
 - anything else → hex viewer.
 
@@ -230,13 +230,13 @@ rates is converted while playing. MP3 sound works too and makes the files smalle
 ## 9. The audio player
 
 Plays **MP3** (MPEG-1/2/2.5 layer 3, CBR or VBR; also layer 1 and 2, `.mp2`), **FLAC** (up to 24
-bits, any compression level) **WAV** (PCM 8, 16, 24 and 32 bits, 32-bit float, A-law, µ-law, IMA and Microsoft ADPCM) and
+bits, any compression level), **OGG Vorbis** (any quality, mono or stereo), **WAV** (PCM 8, 16, 24 and 32 bits, 32-bit float, A-law, µ-law, IMA and Microsoft ADPCM) and
 **AIFF/AIFC**, mono or stereo, at any sample rate. The
 console has one speaker, so stereo is mixed to mono.
 
 The screen shows the waveform being played, the time and length with a progress bar, and the
 format. For the first 3 seconds (and while paused) a bar at the top shows the song's title and
-artist from its tags (ID3 or FLAC), or the file name.
+artist from its tags (ID3, FLAC or OGG), or the file name.
 
 | Button | Action |
 |---|---|
@@ -250,7 +250,7 @@ artist from its tags (ID3 or FLAC), or the file name.
 | PAUSE/SET + D-pad | Volume / brightness, with the indicator |
 
 When a file ends (or you skip past its end) the next audio file of the folder plays, so a folder
-works as an album. Other formats (OGG, Opus, M4A/AAC, WMA…) show a message, as do files that hold no audio (such as a failed download that only kept the
+works as an album. Other formats (Opus, M4A/AAC, WMA…, and OGG with more than 2 channels) show a message, as do files that hold no audio (such as a failed download that only kept the
 tags and cover) and other formats renamed to `.mp3`; convert them with [ffmpeg](https://ffmpeg.org/):
 
 ```
@@ -302,8 +302,8 @@ starts on firmware without the new functions).
 The viewers and players are **overlays**: they are not kept in RAM all the time. Each group (text
 and hex viewers/editors; image viewer; video and audio players) is linked to the same RAM window
 and stored after the program in `FileManager.bin`; the one a file needs is read into the window
-when it is opened. It is still a single file to install, and it leaves ~93 KiB of RAM free for
-new features. See `ld/filemanager.ld`, `src/ovl.c` and `tools/append_overlays.py`.
+when it is opened. It is still a single file to install, and it leaves ~75 KiB of RAM free for
+new features (the window is 74 KiB, the size of the largest overlay, video + audio with OGG). See `ld/filemanager.ld`, `src/ovl.c` and `tools/append_overlays.py`.
 
 - `src/main.c`: list, menus, clipboard, actions, input.
 - `src/ovl.c`: loads the overlays; `src/filetypes.c`: which viewer opens each file.
@@ -314,10 +314,13 @@ new features. See `ld/filemanager.ld`, `src/ovl.c` and `tools/append_overlays.py
 - `src/viewer.c`: text and hex viewers (with the hex editor).
 - `src/image.c`: image viewer (JPEG, PNG, GIF, BMP) with a streaming scaler.
 - `src/video.c`: AVI/MJPEG video player.
-- `src/audio.c`: MP3/FLAC/WAV audio player; `src/flac.c`: a small FLAC decoder of its own.
+- `src/audio.c`: MP3/FLAC/OGG/WAV audio player; `src/flac.c`: a small FLAC decoder of its own;
+  `src/ogg.c`: OGG Vorbis with stb_vorbis, its memory in the shared scratch buffer.
 - `src/third_party/`: [picojpeg](https://github.com/richgel999/picojpeg) (public domain) and the
   inflate part of [miniz](https://github.com/richgel999/miniz) (MIT), for JPEG and PNG;
-  [minimp3](https://github.com/lieff/minimp3) (CC0) for MP3.
+  [minimp3](https://github.com/lieff/minimp3) (CC0) for MP3;
+  [stb_vorbis](https://github.com/nothings/stb) (public domain, the copy in sylverb's
+  [pce-go-retro-go-sd](https://github.com/sylverb/pce-go-retro-go-sd)) for OGG.
 
 ## Status
 
@@ -333,7 +336,9 @@ Tested in the gwemu emulator, with the `external_cores` firmware with and withou
 - audio player: MP3 CBR/VBR/mono/22-48 kHz, MP2, WAV 8/16/24-bit, float, A-law, µ-law, FLAC
   16/24-bit, mono, every stereo mode and 8192-sample blocks (all checked sample by sample
   against ffmpeg), ID3v1/v2 titles, seeking, pause, next/previous and
-  end of file, the Retro-Go menu and the volume indicator, the OGG message; IMA/MS ADPCM WAV
+  end of file, the Retro-Go menu and the volume indicator; OGG Vorbis 11-48 kHz, mono and
+  stereo, quality 0 to 10 (checked against ffmpeg), its tags, a cover picture in the tags, a cut
+  file, and the Opus and 6-channel messages; IMA/MS ADPCM WAV
   and AIFF/AIFC (also checked against ffmpeg); AVI video with MP3 sound;
 - copying folders with subfolders: byte-identical result;
 - moving (instant, and by copy + delete);
@@ -354,4 +359,4 @@ image viewer, the video player (PCM and MP3 sound) and the audio player.
 ## License
 
 MIT (see `LICENSE`). The headers in `sdk/include/` keep their original licenses; picojpeg is
-public domain, miniz is MIT and minimp3 is CC0 (`src/third_party/`).
+public domain, miniz is MIT, minimp3 is CC0 and stb_vorbis is public domain (`src/third_party/`).

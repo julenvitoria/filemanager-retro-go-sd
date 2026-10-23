@@ -13,7 +13,7 @@
 INCLUDE gnw_ram_emu.ld
 
 /* RAM for the largest overlay (code + data + bss); the link fails if one outgrows it. */
-__FM_OVL_LENGTH__ = 56K;
+__FM_OVL_LENGTH__ = 74K;
 
 MEMORY
 {
@@ -34,8 +34,8 @@ SECTIONS
     KEEP(*(.core_entry))
     KEEP(*(.gw_core_bridge_probe))
     . = ALIGN(4);
-    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o) *(.text*)
-    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o) *(.rodata*)
+    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o) *(.text*)
+    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o) *(.rodata*)
     *(.glue_7)
     *(.glue_7t)
     . = ALIGN(4);
@@ -47,7 +47,7 @@ SECTIONS
 
   .data :
   {
-    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o) *(.data*)
+    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o) *(.data*)
   } >RAM_EMU :data
 
   __CORE_CODE_END__ = .;
@@ -55,8 +55,8 @@ SECTIONS
   .bss (NOLOAD) :
   {
     . = ALIGN(8);
-    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o) *(.bss*)
-    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o) *(COMMON)
+    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o) *(.bss*)
+    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o) *(COMMON)
     . = ALIGN(32);
     __FM_OVL_START__ = .;
     . = . + __FM_OVL_LENGTH__;
@@ -93,10 +93,10 @@ SECTIONS
     }
     .fm_ovl_media
     {
-      *video.o(.text* .rodata* .data*) *audio.o(.text* .rodata* .data*) *flac.o(.text* .rodata* .data*)
+      *video.o(.text* .rodata* .data*) *audio.o(.text* .rodata* .data*) *flac.o(.text* .rodata* .data*) *ogg.o(.text* .rodata* .data*)
       . = ALIGN(4);
       __fm_ovl_media_load = .;
-      *video.o(.bss* COMMON) *audio.o(.bss* COMMON) *flac.o(.bss* COMMON)
+      *video.o(.bss* COMMON) *audio.o(.bss* COMMON) *flac.o(.bss* COMMON) *ogg.o(.bss* COMMON)
       . = ALIGN(8);
       __fm_ovl_media_end = .;
     }

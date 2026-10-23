@@ -25,6 +25,7 @@ src/image.c \
 src/video.c \
 src/audio.c \
 src/flac.c \
+src/ogg.c \
 src/third_party/picojpeg/picojpeg.c \
 src/third_party/miniz/miniz_tinfl.c
 

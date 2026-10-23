@@ -1,0 +1,6 @@
+stb_vorbis v1.22 by Sean Barrett (public domain / MIT, see the end of stb_vorbis.c),
+http://nothings.org/stb_vorbis/ — taken from sylverb/pce-go-retro-go-sd.
+
+File Manager change (marked "File Manager:" in start_decoder): the vendor string and the
+comments are kept short (63 / 255 bytes) and only the first 32 comments are stored, so a cover
+picture in the comments (METADATA_BLOCK_PICTURE) does not exhaust the decoder's arena.

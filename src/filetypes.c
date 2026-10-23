@@ -64,8 +64,8 @@ bool is_video_ext(const char *name)
     return ext_in(name, L);
 }
 
-static const char *const PLAYABLE[] = { "wav", "wave", "mp3", "mp2", "mpa", "flac", "fla", "aif", "aiff", "aifc", NULL };
-static const char *const OTHER[]    = { "ogg", "oga", "opus", "m4a", "aac", "wma",
+static const char *const PLAYABLE[] = { "wav", "wave", "mp3", "mp2", "mpa", "flac", "fla", "aif", "aiff", "aifc", "ogg", "oga", NULL };
+static const char *const OTHER[]    = { "opus", "m4a", "aac", "wma",
                                         "ape", "wv", "mid", "midi", "mod", "xm", "s3m", "it", "amr", "ac3", NULL };
 
 bool is_audio_playable_ext(const char *name) { return ext_in(name, PLAYABLE); }
