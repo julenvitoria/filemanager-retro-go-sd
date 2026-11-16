@@ -19,6 +19,13 @@ tarjeta SD desde la propia consola: copiar, mover, renombrar, borrar, ver y edit
 - **Editar texto** (`.txt`, `.cfg`, `.ini`…) con un teclado en pantalla.
 - **Editar en hexadecimal** cualquier archivo, con un teclado hexadecimal.
 - **Información** de archivos y carpetas, y de la **tarjeta SD** (capacidad, usado, libre).
+- **Descomprimir** archivos `.zip` y `.7z` (también 7z partidos en `.7z.001`, `.002`…), aquí o en
+  una carpeta propia.
+- **Comprobar** un archivo: su CRC32, MD5 y SHA-1 (para compararlos con No-Intro o con la tabla de
+  una release).
+- **Limpiar archivos de Mac**: los `._` y `.DS_Store` que dejan macOS e iPhone/iPad en la tarjeta,
+  en una carpeta, con sus subcarpetas o en toda la tarjeta.
+- **Lo que más ocupa**: las carpetas más grandes de la tarjeta, de mayor a menor.
 
 Los textos salen en español o en inglés según el idioma del firmware (cualquier otro idioma usa
 el inglés).
@@ -76,7 +83,10 @@ Las opciones cambian según dónde esté el cursor y si hay algo seleccionado o 
 | Información | Tamaño y fecha; en carpetas, cuántos archivos y subcarpetas tiene y cuánto ocupan |
 | Seleccionar todo / Quitar selección | Selecciona o deselecciona todo lo de la carpeta |
 | Vaciar portapapeles | Olvida lo copiado o cortado |
-| Tarjeta SD | Capacidad total, espacio usado y libre (necesita el firmware nuevo, ver "Firmware") |
+| Descomprimir | En un `.zip`, `.7z` o `.7z.001`: apartado 11. También con A |
+| Comprobar (CRC32/MD5/SHA-1) | Las sumas de comprobación del archivo, en una pantalla aparte (B para volver) |
+| Limpiar archivos de Mac | Borra los restos de macOS de esta carpeta, o de ella y sus subcarpetas: apartado 12 |
+| Tarjeta SD | Capacidad total, espacio usado y libre (necesita el firmware nuevo, ver "Firmware"), y desde ahí **Lo que más ocupa** y **Limpiar archivos de Mac (toda)** |
 | Salir | Vuelve al menú de Retro-Go |
 
 ## 3. Copiar, mover y pegar
@@ -268,6 +278,37 @@ ffmpeg -i entrada.m4a -c:a libmp3lame -q:a 2 salida.mp3
 - Si un archivo de texto no se abre en el visor de texto por su extensión, usa
   **GAME → Ver como texto**.
 
+## 11. Descomprimir
+
+A sobre un `.zip`, un `.7z` o la primera parte de un 7z partido (`nombre.7z.001`, que se lee junto con
+`.002`, `.003`…) pregunta dónde: **En carpeta "nombre"** (una carpeta nueva con el nombre del archivo)
+o **Aquí**. Una barra muestra el progreso; B cancela (el archivo que se estaba escribiendo no se queda
+a medias). Si un archivo ya existe pregunta: Sobrescribir, Sobrescribir todos, Omitir o Cancelar. Al
+terminar dice cuántos archivos han salido y cuáles se han omitido, no son compatibles o vienen dañados
+(se comprueba el CRC de cada uno).
+
+- **zip**: archivos guardados sin comprimir o con deflate (lo que hace cualquier programa), también
+  zip64. No: zips con contraseña, otros métodos (bzip2, LZMA dentro de un zip...), zips partidos.
+- **7z**: LZMA, LZMA2 y sin comprimir, con el filtro x86 (el de 7-Zip para `.exe` pequeños), sólidos o
+  no, con la cabecera comprimida o no. No: PPMd, BZip2, BCJ2 (el filtro de 7-Zip para `.exe` grandes),
+  contraseña. Esos archivos salen en la lista como no compatibles y el resto se descomprime igual.
+- **7z y memoria**: 7-Zip comprime con un diccionario de 16–64 MB, y la consola tiene unos 130 KB
+  para eso. Lo que queda más atrás se vuelve a leer de los archivos ya escritos en la tarjeta: funciona,
+  pero es lento. Un 7z de pocos MB va bien; uno de cientos de MB puede tardar horas. Antes de empezar uno así, el File Manager avisa. Para juegos grandes, un `.zip` (o un 7z con
+  "Tamaño del diccionario: 64 KB") se descomprime mucho más rápido.
+
+## 12. Limpiar archivos de Mac
+
+macOS (y el iPhone/iPad, con la app Archivos) escriben un `._nombre` por cada archivo que copian a una
+tarjeta FAT, un `.DS_Store` en cada carpeta que abren, y sus propias carpetas en la raíz de la tarjeta
+(`.Spotlight-V100`, `.Trashes`, `.fseventsd`, `.TemporaryItems`). En la consola no sirven de nada, y
+los `._` salen en las listas.
+
+**GAME → Limpiar archivos de Mac** ofrece **Esta carpeta** o **Y sus subcarpetas**; **GAME → Tarjeta
+SD → Limpiar archivos de Mac (toda)** limpia la tarjeta entera. Primero cuenta y pregunta ("¿Borrar
+los archivos de Mac? 152 elementos (3.4M)") antes de borrar nada. Solo se tocan los archivos `._…`,
+`.DS_Store` y esas carpetas de macOS en la raíz de la tarjeta.
+
 ---
 
 ## Firmware
@@ -322,6 +363,11 @@ más grande, el de vídeo y audio con OGG). Ver `ld/filemanager.ld`, `src/ovl.c`
 - `src/video.c`: reproductor de vídeo AVI/MJPEG.
 - `src/audio.c`: reproductor de audio MP3/FLAC/OGG/WAV; `src/flac.c`: un decodificador FLAC propio y
   pequeño; `src/ogg.c`: OGG Vorbis con stb_vorbis, con su memoria en el búfer compartido.
+- Overlay de herramientas: `src/tools.c` (la parte de la consola: diálogos, resultados), `src/hash.c`
+  (CRC32, MD5, SHA-1), `src/extract.c` + `src/unzip.c` + `src/un7z.c` (comprimidos), `src/lzma.c`
+  (un descompresor LZMA/LZMA2 con una ventana más pequeña que el diccionario: lo que queda fuera se
+  vuelve a leer de la tarjeta). Se compilan también en el PC: `tools/test/run.sh` los comprueba contra
+  `zipfile`, `hashlib` y `lzma` de Python (`tools/test/make7z.py` escribe los 7z de prueba).
 - `src/third_party/`: [picojpeg](https://github.com/richgel999/picojpeg) (dominio público) y la
   parte de descompresión de [miniz](https://github.com/richgel999/miniz) (MIT), para JPEG y PNG;
   [minimp3](https://github.com/lieff/minimp3) (CC0) para MP3;
