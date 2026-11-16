@@ -18,6 +18,12 @@ from the console itself: copy, move, rename, delete, view and edit files.
 - **Edit text** (`.txt`, `.cfg`, `.ini`…) with an on-screen keyboard.
 - **Hex-edit** any file, with a hex keypad.
 - **Information** about files and folders, and about the **SD card** (capacity, used, free).
+- **Extract** `.zip` and `.7z` archives (also 7z split into `.7z.001`, `.002`…), here or into a
+  folder of their own.
+- **Check** a file: its CRC32, MD5 and SHA-1 (to compare with No-Intro or a release's table).
+- **Clean Mac files**: the `._` files and `.DS_Store` that macOS and iPhone/iPad leave on the card,
+  in a folder, in its subfolders or on the whole card.
+- **What takes most space**: the card's biggest folders, biggest first.
 
 The interface is in Spanish or English depending on the firmware's language (any other language
 uses English).
@@ -75,7 +81,10 @@ The options depend on where the cursor is and whether something is selected or i
 | Information | Size and date; for folders, how many files and subfolders it has and their total size |
 | Select all / Deselect all | Selects or deselects everything in the folder |
 | Clear clipboard | Forgets what was copied or cut |
-| SD card | Total capacity, used and free space (needs a recent firmware, see "Firmware") |
+| Extract | For a `.zip`, `.7z` or `.7z.001`: section 11. Also with A |
+| Check (CRC32/MD5/SHA-1) | The file's checksums, on a screen of their own (B to go back) |
+| Clean Mac files | Deletes the macOS leftovers of this folder, or of it and its subfolders: section 12 |
+| SD card | Total capacity, used and free space (needs a recent firmware, see "Firmware"), and from there **What takes most space** and **Clean Mac files (whole card)** |
 | Exit | Back to the Retro-Go menu |
 
 ## 3. Copy, move and paste
@@ -264,6 +273,36 @@ ffmpeg -i input.m4a -c:a libmp3lame -q:a 2 output.mp3
 - If a text file does not open in the text viewer because of its extension, use
   **GAME → View as text**.
 
+## 11. Extracting archives
+
+A on a `.zip`, `.7z` or the first part of a split 7z (`name.7z.001`, read together with `.002`,
+`.003`…) asks where to: **In folder "name"** (a new folder named after the archive) or **Here**.
+A bar shows the progress; B cancels (the file being written is not left half done). When a file
+already exists it asks: Overwrite, Overwrite all, Skip, or Cancel. At the end it says how many files
+came out, and which were skipped, not supported or damaged (each file's CRC is checked).
+
+- **zip**: stored and deflated files (what every zip tool makes), zip64 too. Not: encrypted zips,
+  other methods (bzip2, LZMA inside a zip...), zips split in parts.
+- **7z**: LZMA, LZMA2 and stored, with the x86 filter (7-Zip's for small `.exe`), solid or not,
+  plain or compressed headers. Not: PPMd, BZip2, BCJ2 (7-Zip's filter for big `.exe`), encryption.
+  Those files are listed as not supported and the rest still comes out.
+- **7z and memory**: 7-Zip packs with a dictionary of 16–64 MB, and the console has about 130 KB
+  for it. Bytes further back than that are read again from the files already written on the card,
+  which works but is slow: a 7z of a few MB is fine, one of hundreds of MB can take hours. The File Manager warns before starting such an archive. For big games, a `.zip` (or 7z
+  with "Dictionary size: 64 KB") extracts much faster.
+
+## 12. Cleaning Mac files
+
+macOS (and iPhone/iPad, through the Files app) write a `._name` companion for every file they copy
+to a FAT card, a `.DS_Store` in every folder they open, and their own folders at the top of the card
+(`.Spotlight-V100`, `.Trashes`, `.fseventsd`, `.TemporaryItems`). None of them is any use on the
+console, and the `._` files show up in the lists.
+
+**GAME → Clean Mac files** offers **This folder** or **And its subfolders**; **GAME → SD card →
+Clean Mac files (whole card)** does the whole card. It counts first and asks ("Delete the Mac
+files? 152 items (3.4M)") before deleting anything. Only files named `._…`, `.DS_Store`, and those
+macOS folders at the top of the card are touched.
+
 ---
 
 ## Firmware
@@ -316,6 +355,11 @@ new features (the window is 74 KiB, the size of the largest overlay, video + aud
 - `src/video.c`: AVI/MJPEG video player.
 - `src/audio.c`: MP3/FLAC/OGG/WAV audio player; `src/flac.c`: a small FLAC decoder of its own;
   `src/ogg.c`: OGG Vorbis with stb_vorbis, its memory in the shared scratch buffer.
+- Tools overlay: `src/tools.c` (the console's side: dialogs, results), `src/hash.c` (CRC32, MD5,
+  SHA-1), `src/extract.c` + `src/unzip.c` + `src/un7z.c` (archives), `src/lzma.c` (an LZMA/LZMA2
+  decoder whose window is smaller than the dictionary: what falls outside is read back from the
+  card). These build on a PC too: `tools/test/run.sh` checks them against Python's `zipfile`,
+  `hashlib` and `lzma` (`tools/test/make7z.py` writes the test 7z archives).
 - `src/third_party/`: [picojpeg](https://github.com/richgel999/picojpeg) (public domain) and the
   inflate part of [miniz](https://github.com/richgel999/miniz) (MIT), for JPEG and PNG;
   [minimp3](https://github.com/lieff/minimp3) (CC0) for MP3;

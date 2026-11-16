@@ -213,6 +213,19 @@ static bool op_tick(void)
     return !op.cancelled;
 }
 
+/* For jobs of their own (hashing, extracting): bytes done so far; false = cancelled with B */
+bool op_progress(uint64_t done_bytes)
+{
+    op.done_bytes = done_bytes;
+    return op_tick();
+}
+
+bool op_progress_of(uint64_t done_bytes, uint64_t total_bytes)
+{
+    op.total_bytes = total_bytes;
+    return op_progress(done_bytes);
+}
+
 /* ================================================================ counting */
 
 static char g_a[FM_PATH_MAX], g_b[FM_PATH_MAX];   /* shared recursion buffers */
@@ -415,4 +428,134 @@ op_result_t op_move(const char *src, const char *dst)
     r = op_delete(src);
     op.done_bytes = keep;
     return r;
+}
+
+/* ================================================================ macOS leftovers */
+/* What macOS (and iPhone/iPad Files) leave on a FAT card: an AppleDouble "._name" for every file
+ * copied, ".DS_Store" in each folder it opens, and its own folders at the top of the card. Only
+ * files are taken as "._" leftovers (a folder with such a name is somebody's). */
+static const char *const MAC_ROOT_DIRS[] = { ".Spotlight-V100", ".Trashes", ".fseventsd", ".TemporaryItems", NULL };
+
+static bool mac_file(const char *name)
+{
+    return (name[0] == '.' && name[1] == '_') || strcmp(name, ".DS_Store") == 0;
+}
+
+static bool mac_root_dir(const char *name)
+{
+    for (int i = 0; MAC_ROOT_DIRS[i]; i++)
+        if (strcmp(name, MAC_ROOT_DIRS[i]) == 0) return true;
+    return false;
+}
+
+static char g_m[FM_PATH_MAX];      /* the walk's own buffer: op_delete() uses g_a */
+
+/* g_m = folder ("" = root). delete=false: only counts. */
+static op_result_t mac_rec(bool recursive, bool delete, fs_count_t *c)
+{
+    DIR d;
+    FILINFO fi;
+    bool root = g_m[0] == '\0';
+    if (f_opendir(&d, root ? "/" : g_m) != FR_OK)
+        return OP_ERROR;
+    size_t len = strlen(g_m);
+    op_result_t r = OP_OK;
+    while (r == OP_OK && f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
+        if (!op_tick()) { r = OP_CANCELLED; break; }
+        size_t n = strlen(fi.fname);
+        if (len + 1 + n >= FM_PATH_MAX) continue;
+        g_m[len] = '/'; strcpy(g_m + len + 1, fi.fname);
+        bool dir = (fi.fattrib & AM_DIR) != 0;
+        if (dir && root && mac_root_dir(fi.fname)) {
+            fs_count_t sub;
+            if (fs_count(g_m, &sub)) { c->files += sub.files; c->bytes += sub.bytes; }
+            c->dirs++;
+            if (delete) {
+                uint64_t keep_b = op.done_bytes; uint32_t keep_i = op.done_items;
+                r = op_delete(g_m);
+                op.done_bytes = keep_b; op.done_items = keep_i + 1;
+            }
+        } else if (dir) {
+            if (recursive) r = mac_rec(true, delete, c);
+        } else if (mac_file(fi.fname)) {
+            c->files++;
+            c->bytes += fi.fsize;
+            if (delete) {
+                if (remove(g_m) != 0 && !rg_storage_delete(g_m)) r = OP_ERROR;
+                else op.done_items++;
+            }
+        }
+        g_m[len] = '\0';
+    }
+    f_closedir(&d);
+    return r;
+}
+
+/* The macOS leftovers in a folder (and below it): counted (delete=false) or deleted. The
+ * folders macOS makes for itself only count at the top of the card. */
+op_result_t fs_mac_clean(const char *dir, bool recursive, bool delete, fs_count_t *out)
+{
+    memset(out, 0, sizeof *out);
+    snprintf(g_m, sizeof g_m, "%s", strcmp(dir, "/") == 0 ? "" : dir);
+    return mac_rec(recursive, delete, out);
+}
+
+/* ================================================================ biggest folders */
+/* Every folder's size with everything inside it; the biggest FM_TOP_MAX are kept, sorted. */
+static fs_top_t *g_top;
+static int g_top_n;
+
+static void top_add(const char *path, uint64_t bytes)
+{
+    if (strlen(path) >= sizeof g_top[0].path) return;     /* (too long to go back to) */
+    int i;
+    if (g_top_n == FM_TOP_MAX) {
+        if (bytes <= g_top[FM_TOP_MAX - 1].bytes) return;
+        i = FM_TOP_MAX - 1;
+    } else {
+        i = g_top_n++;
+    }
+    while (i > 0 && g_top[i - 1].bytes < bytes) { g_top[i] = g_top[i - 1]; i--; }
+    g_top[i].bytes = bytes;
+    snprintf(g_top[i].path, sizeof g_top[i].path, "%s", path);
+}
+
+static bool top_rec(uint64_t *total)   /* g_m = folder ("" = root) */
+{
+    DIR d;
+    FILINFO fi;
+    if (f_opendir(&d, g_m[0] ? g_m : "/") != FR_OK)
+        return true;                   /* (unreadable: counts as empty) */
+    size_t len = strlen(g_m);
+    bool ok = true;
+    uint64_t sum = 0;
+    while (ok && f_readdir(&d, &fi) == FR_OK && fi.fname[0]) {
+        if (!op_tick()) { ok = false; break; }
+        if (fi.fattrib & AM_DIR) {
+            size_t n = strlen(fi.fname);
+            if (len + 1 + n >= FM_PATH_MAX) continue;
+            g_m[len] = '/'; strcpy(g_m + len + 1, fi.fname);
+            uint64_t sub = 0;
+            ok = top_rec(&sub);
+            if (ok) top_add(g_m, sub);
+            g_m[len] = '\0';
+            sum += sub;
+        } else {
+            sum += fi.fsize;
+            op.done_items++;
+        }
+    }
+    f_closedir(&d);
+    *total = sum;
+    return ok;
+}
+
+int fs_biggest(fs_top_t *top, uint64_t *total)
+{
+    g_top = top;
+    g_top_n = 0;
+    g_m[0] = '\0';
+    *total = 0;
+    if (!top_rec(total)) return -1;
+    return g_top_n;
 }

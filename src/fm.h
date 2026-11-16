@@ -43,6 +43,12 @@ enum {
     T_IMG_PROGRESSIVE, T_IMG_TOO_BIG, T_IMG_BROKEN, T_LOADING,
     T_VID_FORMAT, T_VID_CONVERT, T_VID_CODEC, T_VID_SIZE, T_VID_NO_AUDIO, T_VID_SUBSAMPLING,
     T_AUD_FORMAT, T_AUD_CONVERT, T_AUD_CODEC, T_AUD_BROKEN, T_OVL_MISSING, T_AUD_EMPTY, T_AUD_DOWNLOAD, T_AUD_OGG_BIG,
+    T_HASH, T_HASHING, T_BACK_HELP, T_OVERWRITE_ALL,
+    T_EXTRACT, T_EXTRACT_HERE, T_EXTRACT_FOLDER, T_EXTRACTING, T_ARC_BAD, T_ARC_UNSUPPORTED, T_ARC_MEMORY,
+    T_ARC_FILES, T_ARC_SKIPPED, T_ARC_UNSUP_N, T_ARC_BAD_N, T_ARC_FIRST,
+    T_7Z_SLOW1, T_7Z_SLOW2, T_7Z_SLOW3, T_7Z_DATA, T_7Z_DICT, T_7Z_TRY,
+    T_MAC_CLEAN, T_MAC_WHERE, T_MAC_HERE, T_MAC_SUB, T_MAC_CARD, T_MAC_NONE, T_MAC_CONFIRM, T_MAC_DONE,
+    T_BIGGEST, T_BIGGEST_HELP, T_SCANNING,
     T_COUNT
 };
 
@@ -59,6 +65,9 @@ int  ui_message(const char *title, const char *l1, const char *l2, const char *l
 /* Bar across the top: the first text wraps over up to two lines, the second (dim) one below. */
 void ui_banner(const char *l1, const char *l2);
 int  ui_choice(const char *title, const char *l1, const char *b1, const char *b2, const char *b3);
+/* Up to 4 lines and 4 buttons: returns the button (1..n), 0 if closed with B */
+int  ui_dialog(const char *title, const char *const *lines, int nlines, const char *const *buttons, int nbuttons);
+void fm_draw_list(void);            /* the file list again (a dialog's background) */
 
 /* ------------------------------------------------------------------ input (main.c) */
 enum { K_UP = 1, K_DOWN = 2, K_LEFT = 4, K_RIGHT = 8, K_A = 16, K_B = 32, K_GAME = 64, K_TIME = 128,
@@ -74,7 +83,7 @@ void fm_overlay_clear(void);       /* true once when the volume/brightness indic
 extern void (*fm_menu_hook)(bool entering);   /* called around the Retro-Go menu (video: mute) */          /* 320x240 RGB565 buffer (the dialog background; free while viewing) */
 
 /* ------------------------------------------------------------------ overlays (ovl.c) */
-enum { OVL_TEXT, OVL_IMAGE, OVL_MEDIA };
+enum { OVL_TEXT, OVL_IMAGE, OVL_MEDIA, OVL_TOOLS };
 bool fm_ovl_use(int id);            /* load that group of viewers into the overlay window */
 
 /* ------------------------------------------------------------------ paths (fsops.c) */
@@ -101,6 +110,12 @@ op_result_t op_delete_uncounted(const char *path);      /* same, without moving 
 bool op_fast_rename_available(void);
 bool fs_rename(const char *src, const char *dst);        /* firmware rename (fast) or false */
 bool fs_free_space(uint64_t *free_bytes, uint64_t *total_bytes);
+bool op_progress(uint64_t done_bytes);                   /* own jobs: false = cancelled */
+bool op_progress_of(uint64_t done_bytes, uint64_t total_bytes);
+op_result_t fs_mac_clean(const char *dir, bool recursive, bool delete, fs_count_t *out);
+#define FM_TOP_MAX 48
+typedef struct { uint64_t bytes; char path[256]; } fs_top_t;
+int fs_biggest(fs_top_t *top, uint64_t *total);         /* folders by size: count, -1 = cancelled */
 
 /* ------------------------------------------------------------------ keyboard (osk.c) */
 bool osk_edit(const char *title, char *text, size_t size);   /* false = cancelled */
@@ -131,6 +146,11 @@ void kb_draw(void);
 void kb_nav(uint32_t keys);         /* D-pad moves the key selection */
 int  kb_activate(char *ch);         /* press the selected key: 0 = character in *ch, KC_* code,
                                        -1 = handled inside (Shift) */
+
+/* ------------------------------------------------------------------ tools (tools.c, overlay) */
+void tool_hash(const char *path);   /* CRC32 / MD5 / SHA-1 of a file, on a screen of their own */
+void tool_extract(const char *archive, const char *dest);   /* .zip, .7z, .7z.001 */
+bool is_archive_name(const char *name);                       /* filetypes.c */
 
 /* ------------------------------------------------------------------ text editor (editor.c) */
 bool edit_text(const char *path);   /* true if the file was saved */

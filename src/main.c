@@ -129,6 +129,39 @@ static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_ED_TOO_BIG]     = S("Too big to edit. Maximum:", "Demasiado grande para editar. Máximo:"),
     [T_ED_FULL]        = S("Editor full: save and reopen", "Editor lleno: guarda y vuelve a abrir"),
     [T_TEXT_HELP]      = S("A:Edit Up/Dn:Scroll L/R:Page B:Back", "A:Editar Arr/Abj:Mover I/D:Pag B:Salir"),
+    [T_HASH]           = S("Check (CRC32/MD5/SHA-1)", "Comprobar (CRC32/MD5/SHA-1)"),
+    [T_HASHING]        = S("Checking", "Comprobando"),
+    [T_BACK_HELP]      = S("B:Back", "B:Volver"),
+    [T_OVERWRITE_ALL]  = S("Overwrite all", "Sobrescribir todos"),
+    [T_EXTRACT]        = S("Extract", "Descomprimir"),
+    [T_EXTRACT_HERE]   = S("Here", "Aquí"),
+    [T_EXTRACT_FOLDER] = S("In folder", "En carpeta"),
+    [T_EXTRACTING]     = S("Extracting", "Descomprimiendo"),
+    [T_ARC_BAD]        = S("Damaged or not an archive", "Archivo dañado o no es un comprimido"),
+    [T_ARC_UNSUPPORTED]= S("This kind of archive is not supported", "Este tipo de comprimido no es compatible"),
+    [T_ARC_MEMORY]     = S("Not enough memory for this archive", "No hay memoria para este comprimido"),
+    [T_ARC_FILES]      = S("Files extracted", "Archivos extraídos"),
+    [T_ARC_SKIPPED]    = S("kept:", "omitidos:"),
+    [T_ARC_UNSUP_N]    = S("unsupported:", "no compatibles:"),
+    [T_ARC_BAD_N]      = S("damaged:", "dañados:"),
+    [T_ARC_FIRST]      = S("First:", "Primero:"),
+    [T_7Z_SLOW1]       = S("Big 7z for the console:", "7z grande para la consola:"),
+    [T_7Z_SLOW2]       = S("it may take a long time.", "puede tardar mucho."),
+    [T_7Z_SLOW3]       = S("(B cancels at any time)", "(B cancela en cualquier momento)"),
+    [T_7Z_DATA]        = S("of data", "de datos"),
+    [T_7Z_DICT]        = S("dictionary", "diccionario"),
+    [T_7Z_TRY]         = S("Try it", "Intentarlo"),
+    [T_MAC_CLEAN]      = S("Clean Mac files", "Limpiar archivos de Mac"),
+    [T_MAC_WHERE]      = S("._ files and .DS_Store", "Archivos ._ y .DS_Store"),
+    [T_MAC_HERE]       = S("This folder", "Esta carpeta"),
+    [T_MAC_SUB]        = S("And its subfolders", "Y sus subcarpetas"),
+    [T_MAC_CARD]       = S("Clean Mac files (whole card)", "Limpiar archivos de Mac (toda)"),
+    [T_MAC_NONE]       = S("No Mac files here", "No hay archivos de Mac"),
+    [T_MAC_CONFIRM]    = S("Delete the Mac files?", "¿Borrar los archivos de Mac?"),
+    [T_MAC_DONE]       = S("Deleted", "Borrados"),
+    [T_BIGGEST]        = S("What takes most space", "Lo que más ocupa"),
+    [T_BIGGEST_HELP]   = S("A:Go there B:Back", "A:Ir a la carpeta B:Volver"),
+    [T_SCANNING]       = S("Measuring the card", "Midiendo la tarjeta"),
 };
 
 #ifdef FM_TEST_ES      /* emulator tests: Spanish UI regardless of the firmware setting */
@@ -308,6 +341,22 @@ int ui_choice(const char *title, const char *l1, const char *b1, const char *b2,
     dialog_prepare();
     int r = odroid_overlay_dialog(title, ch, first, &repaint_current, 0);
     return (r >= 1 && r <= 3) ? r : 0;
+}
+
+int ui_dialog(const char *title, const char *const *lines, int nlines, const char *const *buttons, int nbuttons)
+{
+    odroid_dialog_choice_t ch[12];
+    int n = 0;
+    for (int i = 0; i < nlines && i < 5; i++)
+        if (lines[i]) ch[n++] = (odroid_dialog_choice_t){ 0, lines[i], "", -1, NULL };
+    if (n) ch[n++] = (odroid_dialog_choice_t)ODROID_DIALOG_CHOICE_SEPARATOR;
+    int first = n;
+    for (int i = 0; i < nbuttons && i < 5; i++)
+        ch[n++] = (odroid_dialog_choice_t){ i + 1, buttons[i], "", 1, NULL };
+    ch[n++] = (odroid_dialog_choice_t)ODROID_DIALOG_CHOICE_LAST;
+    dialog_prepare();
+    int r = odroid_overlay_dialog(title, ch, first, &repaint_current, 0);
+    return (r >= 1 && r <= nbuttons) ? r : 0;
 }
 
 /* ================================================================ input */
@@ -556,6 +605,8 @@ static void draw_list(void)
     ui_end();
 }
 
+void fm_draw_list(void) { draw_list(); }
+
 static void cursor_move(int delta)
 {
     if (!g_count) return;
@@ -778,12 +829,136 @@ static void do_info(void)
     ui_message(e->dir ? tr(T_FOLDER) : tr(T_FILE), l1, l2, l3[0] ? l3 : l4, false);
 }
 
+/* macOS leftovers in dir (and below): count, ask, delete */
+static void do_mac_clean(const char *dir, bool recursive)
+{
+    fs_count_t c;
+    op_begin(tr(T_COUNTING), 0, 0);
+    op_result_t r = fs_mac_clean(dir, recursive, false, &c);
+    draw_list();
+    if (r == OP_CANCELLED) return;
+    if (!c.files && !c.dirs) { ui_message(tr(T_MAC_CLEAN), tr(T_MAC_NONE), NULL, NULL, false); return; }
+    char l1[64], l2[64], sz[16];
+    fmt_size(sz, c.bytes);
+    snprintf(l1, sizeof l1, "%lu %s (%s)", (unsigned long)(c.files + c.dirs), tr(T_ITEMS), sz);
+    snprintf(l2, sizeof l2, "%s", strcmp(dir, "/") == 0 ? "/" : path_base(dir));
+    if (!ui_message(tr(T_MAC_CONFIRM), l1, l2, recursive ? tr(T_MAC_SUB) : NULL, true)) return;
+    draw_list();
+    op_begin(tr(T_DELETING), 0, c.files + c.dirs);
+    fs_count_t d;
+    r = fs_mac_clean(dir, recursive, true, &d);
+    int keep = g_cursor;
+    load_dir(NULL);
+    g_cursor = keep < g_count ? keep : (g_count ? g_count - 1 : 0);
+    cursor_move(0);
+    draw_list();
+    if (r != OP_OK) { show_result(r, ""); return; }
+    snprintf(l1, sizeof l1, "%s: %lu %s (%s)", tr(T_MAC_DONE), (unsigned long)(c.files + c.dirs), tr(T_ITEMS), sz);
+    ui_message(tr(T_MAC_CLEAN), l1, NULL, NULL, false);
+}
+
+static void mac_clean_menu(void)
+{
+    const char *lines[] = { tr(T_MAC_WHERE) };
+    const char *buttons[] = { tr(T_MAC_HERE), tr(T_MAC_SUB), tr(T_CANCEL) };
+    int r = ui_dialog(tr(T_MAC_CLEAN), lines, 1, buttons, 3);
+    draw_list();
+    if (r == 1 || r == 2) do_mac_clean(g_cwd, r == 2);
+}
+
+/* The biggest folders of the card, biggest first: A goes there */
+static void do_biggest(void)
+{
+    fs_top_t *top = (fs_top_t *)fm_scratch;
+    _Static_assert(FM_TOP_MAX * sizeof(fs_top_t) <= FM_SCRATCH_SIZE, "fm_scratch");
+    uint64_t total;
+    op_begin(tr(T_SCANNING), 0, 0);
+    int n = fs_biggest(top, &total);
+    if (n <= 0) return;
+    int cur = 0, first = 0;
+    const int rows = FM_ROWS - 5;
+    for (;;) {
+        ui_begin();
+        char t[48], sz[16];
+        fmt_size(sz, total);
+        snprintf(t, sizeof t, "%s: %s", tr(T_USED), sz);
+        ui_banner(tr(T_BIGGEST), t);
+        if (cur < first) first = cur;
+        if (cur >= first + rows) first = cur - rows + 1;
+        for (int r = 0; r < rows && first + r < n; r++) {
+            int i = first + r;
+            bool sel = i == cur;
+            uint16_t bg = sel ? C_SEL_BG : C_BG, fg = sel ? C_SEL_TEXT : C_DIR;
+            const char *p = top[i].path;
+            size_t len = strlen(p);
+            char name[FM_COLS + 1];
+            if (len > FM_COLS - 8) snprintf(name, sizeof name, "..%s", p + len - (FM_COLS - 10));
+            else snprintf(name, sizeof name, "%s", p);
+            fmt_size(sz, top[i].bytes);
+            ui_text_w(0, 4 + r, FM_COLS - 7, name, fg, bg);
+            char right[8];
+            snprintf(right, sizeof right, "%6s ", sz);
+            ui_text_w(FM_COLS - 7, 4 + r, 7, right, fg, bg);
+        }
+        ui_text_w(0, FM_ROWS - 1, FM_COLS, tr(T_BIGGEST_HELP), C_BAR_TEXT, C_BAR);
+        ui_end();
+        uint32_t k = input_wait();
+        if (k & K_UP) cur = cur > 0 ? cur - 1 : n - 1;
+        if (k & K_DOWN) cur = cur < n - 1 ? cur + 1 : 0;
+        if (k & K_LEFT) cur = cur > rows ? cur - rows : 0;
+        if (k & K_RIGHT) cur = cur + rows < n ? cur + rows : n - 1;
+        if (k & K_B) return;
+        if (k & K_A) {
+            snprintf(g_cwd, sizeof g_cwd, "%s", top[cur].path);
+            load_dir(NULL);
+            return;
+        }
+    }
+}
+
+static void do_hash(void)
+{
+    if (!g_count || g_ent[g_cursor].dir) return;
+    char p[FM_PATH_MAX];
+    path_join(p, g_cwd, ename(&g_ent[g_cursor]));
+    if (fm_ovl_use(OVL_TOOLS)) tool_hash(p);
+}
+
+/* An archive: here, or in a folder named after it */
+static void do_extract(void)
+{
+    if (!g_count || g_ent[g_cursor].dir) return;
+    char name[256], p[FM_PATH_MAX], dest[FM_PATH_MAX], folder[256], label[64];
+    snprintf(name, sizeof name, "%s", ename(&g_ent[g_cursor]));
+    path_join(p, g_cwd, name);
+    /* the folder: the name without ".zip" / ".7z" / ".7z.001" */
+    snprintf(folder, sizeof folder, "%s", name);
+    char *dot = strrchr(folder, '.');
+    if (dot && strcmp(dot, ".001") == 0) { *dot = '\0'; dot = strrchr(folder, '.'); }
+    if (dot && dot != folder) *dot = '\0';
+    snprintf(label, sizeof label, "%s \"%.*s%s\"", tr(T_EXTRACT_FOLDER), 18, folder, strlen(folder) > 18 ? ".." : "");
+    const char *lines[] = { name };
+    const char *buttons[] = { label, tr(T_EXTRACT_HERE), tr(T_CANCEL) };
+    int r = ui_dialog(tr(T_EXTRACT), lines, 1, buttons, 3);
+    draw_list();
+    if (r != 1 && r != 2) return;
+    if (r == 1) path_join(dest, g_cwd, folder);
+    else snprintf(dest, sizeof dest, "%s", g_cwd);
+    if (fm_ovl_use(OVL_TOOLS)) tool_extract(p, dest);
+    load_dir(r == 1 ? folder : name);
+    draw_list();
+}
+
 static void do_sdinfo(void)
 {
     uint64_t fr, tot;
     char l1[64], l2[64], l3[64], a[16];
     if (!fs_free_space(&fr, &tot) || !tot) {
-        ui_message(tr(T_SDINFO), tr(T_UNKNOWN), tr(op_fast_rename_available() ? T_FAST_RENAME : T_SLOW_RENAME), NULL, false);
+        const char *lines[] = { tr(T_UNKNOWN), tr(op_fast_rename_available() ? T_FAST_RENAME : T_SLOW_RENAME) };
+        const char *buttons[] = { tr(T_OK), tr(T_BIGGEST), tr(T_MAC_CARD) };
+        int r = ui_dialog(tr(T_SDINFO), lines, 2, buttons, 3);
+        if (r == 2) { draw_list(); do_biggest(); }
+        if (r == 3) { draw_list(); do_mac_clean("/", true); }
         return;
     }
     fmt_size(a, tot);
@@ -792,7 +967,11 @@ static void do_sdinfo(void)
     snprintf(l2, sizeof l2, "%s: %s (%u%%)", tr(T_USED), a, (unsigned)((tot - fr) * 100 / tot));
     fmt_size(a, fr);
     snprintf(l3, sizeof l3, "%s: %s (%u%%)", tr(T_FREE), a, (unsigned)(fr * 100 / tot));
-    ui_message(tr(T_SDINFO), l1, l2, l3, false);
+    const char *lines[] = { l1, l2, l3 };
+    const char *buttons[] = { tr(T_OK), tr(T_BIGGEST), tr(T_MAC_CARD) };
+    int r = ui_dialog(tr(T_SDINFO), lines, 3, buttons, 3);
+    if (r == 2) { draw_list(); do_biggest(); }
+    if (r == 3) { draw_list(); do_mac_clean("/", true); }
 }
 
 /* Image viewer over the current folder: left/right go to the previous/next picture. */
@@ -865,6 +1044,7 @@ static void open_entry(bool force_text, bool force_hex)
     char name[256];
     snprintf(name, sizeof name, "%s", ename(e));
     if (is_image_file(p) && !force_text && !force_hex) { view_images(); return; }
+    if (is_archive_name(name) && !force_text && !force_hex) { do_extract(); return; }
     if (is_audio_ext(p) && !force_text && !force_hex) { play_audios(); return; }
     if (is_video_ext(p) && !force_text && !force_hex) {
         if (fm_ovl_use(OVL_MEDIA)) play_video(p);
@@ -906,16 +1086,18 @@ static void do_newfile(void)
 }
 
 enum { A_OPEN = 1, A_TEXT, A_EDIT, A_HEX, A_NEWFILE, A_COPY, A_CUT, A_PASTE, A_CLEAR, A_RENAME, A_DELETE, A_NEWDIR,
-       A_INFO, A_MARKALL, A_UNMARKALL, A_SD, A_EXIT };
+       A_INFO, A_MARKALL, A_UNMARKALL, A_SD, A_EXIT, A_EXTRACT, A_HASH, A_MAC };
 
 static int actions_menu(void)
 {
-    odroid_dialog_choice_t ch[20];
+    odroid_dialog_choice_t ch[24];
     int n = 0;
     static char paste_label[64];
     bool have = g_count > 0;
     bool file = have && !g_ent[g_cursor].dir && !g_marked;
     if (have && !g_marked) ch[n++] = (odroid_dialog_choice_t){ A_OPEN, tr(T_OPEN), "", 1, NULL };
+    if (file && is_archive_name(ename(&g_ent[g_cursor])))
+        ch[n++] = (odroid_dialog_choice_t){ A_EXTRACT, tr(T_EXTRACT), "", 1, NULL };
     if (file) {
         ch[n++] = (odroid_dialog_choice_t){ A_TEXT, tr(T_VIEW_TEXT), "", 1, NULL };
         ch[n++] = (odroid_dialog_choice_t){ A_EDIT, tr(T_EDIT_TEXT), "", 1, NULL };
@@ -934,6 +1116,8 @@ static int actions_menu(void)
     ch[n++] = (odroid_dialog_choice_t){ A_NEWDIR, tr(T_NEWDIR), "", 1, NULL };
     ch[n++] = (odroid_dialog_choice_t){ A_NEWFILE, tr(T_NEWFILE), "", 1, NULL };
     if (have && !g_marked) ch[n++] = (odroid_dialog_choice_t){ A_INFO, tr(T_INFO), "", 1, NULL };
+    if (file) ch[n++] = (odroid_dialog_choice_t){ A_HASH, tr(T_HASH), "", 1, NULL };
+    ch[n++] = (odroid_dialog_choice_t){ A_MAC, tr(T_MAC_CLEAN), "", 1, NULL };
     ch[n++] = (odroid_dialog_choice_t)ODROID_DIALOG_CHOICE_SEPARATOR;
     if (have) ch[n++] = (odroid_dialog_choice_t){ A_MARKALL, tr(T_MARK_ALL), "", 1, NULL };
     if (g_marked) ch[n++] = (odroid_dialog_choice_t){ A_UNMARKALL, tr(T_UNMARK_ALL), "", 1, NULL };
@@ -1006,6 +1190,9 @@ void app_main(uint8_t load_state, uint8_t start_paused, int8_t save_slot)
                     g_marked = 0;
                     break;
                 case A_SD:     do_sdinfo(); break;
+                case A_EXTRACT: do_extract(); break;
+                case A_HASH:   do_hash(); break;
+                case A_MAC:    mac_clean_menu(); break;
                 case A_EXIT:   odroid_system_switch_app(0); break;
                 default: break;
             }

@@ -34,8 +34,8 @@ SECTIONS
     KEEP(*(.core_entry))
     KEEP(*(.gw_core_bridge_probe))
     . = ALIGN(4);
-    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o) *(.text*)
-    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o) *(.rodata*)
+    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o *tools.o *hash.o *extract.o *unzip.o *un7z.o *lzma.o *tinfl_tools.o) *(.text*)
+    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o *tools.o *hash.o *extract.o *unzip.o *un7z.o *lzma.o *tinfl_tools.o) *(.rodata*)
     *(.glue_7)
     *(.glue_7t)
     . = ALIGN(4);
@@ -47,7 +47,7 @@ SECTIONS
 
   .data :
   {
-    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o) *(.data*)
+    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o *tools.o *hash.o *extract.o *unzip.o *un7z.o *lzma.o *tinfl_tools.o) *(.data*)
   } >RAM_EMU :data
 
   __CORE_CODE_END__ = .;
@@ -55,8 +55,8 @@ SECTIONS
   .bss (NOLOAD) :
   {
     . = ALIGN(8);
-    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o) *(.bss*)
-    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o) *(COMMON)
+    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o *tools.o *hash.o *extract.o *unzip.o *un7z.o *lzma.o *tinfl_tools.o) *(.bss*)
+    EXCLUDE_FILE(*viewer.o *editor.o *kbd.o *image.o *picojpeg.o *miniz_tinfl.o *video.o *audio.o *flac.o *ogg.o *tools.o *hash.o *extract.o *unzip.o *un7z.o *lzma.o *tinfl_tools.o) *(COMMON)
     . = ALIGN(32);
     __FM_OVL_START__ = .;
     . = . + __FM_OVL_LENGTH__;
@@ -100,11 +100,24 @@ SECTIONS
       . = ALIGN(8);
       __fm_ovl_media_end = .;
     }
+    .fm_ovl_tools
+    {
+      *tools.o(.text* .rodata* .data*) *hash.o(.text* .rodata* .data*) *extract.o(.text* .rodata* .data*)
+      *unzip.o(.text* .rodata* .data*) *un7z.o(.text* .rodata* .data*) *lzma.o(.text* .rodata* .data*)
+      *tinfl_tools.o(.text* .rodata* .data*)
+      . = ALIGN(4);
+      __fm_ovl_tools_load = .;
+      *tools.o(.bss* COMMON) *hash.o(.bss* COMMON) *extract.o(.bss* COMMON) *unzip.o(.bss* COMMON)
+      *un7z.o(.bss* COMMON) *lzma.o(.bss* COMMON) *tinfl_tools.o(.bss* COMMON)
+      . = ALIGN(8);
+      __fm_ovl_tools_end = .;
+    }
   }
 
   ASSERT(__fm_ovl_text_end  <= __FM_OVL_END__, "Error: text overlay larger than the window")
   ASSERT(__fm_ovl_image_end <= __FM_OVL_END__, "Error: image overlay larger than the window")
   ASSERT(__fm_ovl_media_end <= __FM_OVL_END__, "Error: media overlay larger than the window")
+  ASSERT(__fm_ovl_tools_end <= __FM_OVL_END__, "Error: tools overlay larger than the window")
 
   __exidx_start = .;
   __exidx_end = .;

@@ -27,7 +27,14 @@ src/audio.c \
 src/flac.c \
 src/ogg.c \
 src/third_party/picojpeg/picojpeg.c \
-src/third_party/miniz/miniz_tinfl.c
+src/third_party/miniz/miniz_tinfl.c \
+src/tools.c \
+src/hash.c \
+src/extract.c \
+src/unzip.c \
+src/un7z.c \
+src/lzma.c \
+src/tinfl_tools.c
 
 CORE_C_INCLUDES := -Isrc
 CORE_C_DEFS := -DPROJECT_KIND_HOMEBREW=1 -DMINIZ_NO_MALLOC -DMINIZ_NO_STDIO -DMINIZ_NO_TIME
@@ -36,7 +43,7 @@ GNW_CORE_SDK ?= sdk
 
 # Viewers and players are overlays loaded on demand (ld/filemanager.ld, src/ovl.c)
 CORE_LDSCRIPT := ld/filemanager.ld
-FM_OVERLAYS := text image media
+FM_OVERLAYS := text image media tools
 BUILD_DIR ?= build
 
 PACKED_BIN := FileManager.bin

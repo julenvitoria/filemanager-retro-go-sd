@@ -75,3 +75,17 @@ bool is_audio_ext(const char *name)
     if (is_macos_meta(name)) return false;
     return ext_in(name, PLAYABLE) || ext_in(name, OTHER);
 }
+
+/* What the tools overlay extracts: .zip, .7z and the first part of a split 7z (.7z.001, or any
+ * "x.001" whose name says 7z) */
+bool is_archive_name(const char *name)
+{
+    if (is_macos_meta(name)) return false;
+    static const char *const L[] = { "zip", "7z", NULL };
+    if (ext_in(name, L)) return true;
+    size_t n = strlen(name);
+    if (n < 5 || strcmp(name + n - 4, ".001") != 0) return false;
+    for (size_t i = 0; i + 2 <= n - 4; i++)
+        if (strncasecmp(name + i, "7z", 2) == 0) return true;
+    return false;
+}
