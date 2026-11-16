@@ -474,13 +474,12 @@ static op_result_t mac_rec(bool recursive, bool delete, fs_count_t *files, fs_co
         g_m[len] = '/'; strcpy(g_m + len + 1, fi.fname);
         bool dir = (fi.fattrib & AM_DIR) != 0;
         if (dir && mac_dir(fi.fname, root)) {
-            fs_count_t sub;
-            if (fs_count(g_m, &sub)) { sys->files += sub.files; sys->bytes += sub.bytes; }
             sys->dirs++;
             if (delete) {
-                uint64_t keep_b = op.done_bytes; uint32_t keep_i = op.done_items;
-                r = op_delete(g_m);
-                op.done_bytes = keep_b; op.done_items = keep_i + 1;
+                r = op_delete(g_m);             /* (the bar moves with every file it holds) */
+            } else {
+                fs_count_t sub;
+                if (fs_count(g_m, &sub)) { sys->files += sub.files + sub.dirs; sys->bytes += sub.bytes; }
             }
         } else if (dir) {
             if (recursive) r = mac_rec(true, delete, files, sys);
