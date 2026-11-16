@@ -721,7 +721,7 @@ static void do_delete(void)
         path_join(p, g_cwd, ename(&g_ent[idx[i]]));
         if (fs_count(p, &c)) items += c.files + c.dirs + (g_ent[idx[i]].dir ? 1 : 0);
     }
-    op_begin(tr(T_DELETING), 0, items + y.files);   /* (every file in the trash and the like too) */
+    op_begin(tr(T_DELETING), 0, items);
     op_result_t r = OP_OK;
     const char *failed = NULL;
     for (int i = 0; i < n && r != OP_CANCELLED; i++) {
@@ -846,7 +846,7 @@ static void do_mac_clean(const char *dir, bool recursive)
     snprintf(l3, sizeof l3, "%s%s%s", strcmp(dir, "/") == 0 ? "/" : path_base(dir), recursive ? " + " : "", recursive ? tr(T_MAC_SUBS) : "");
     if (!ui_message(tr(T_MAC_CONFIRM), f.files ? l1 : NULL, y.dirs ? l2 : NULL, l3, true)) return;
     draw_list();
-    op_begin(tr(T_DELETING), 0, items);
+    op_begin(tr(T_DELETING), 0, items + y.files);   /* (every file in the trash and the like too) */
     fs_count_t f2, y2;
     r = fs_mac_clean(dir, recursive, true, &f2, &y2);
     int keep = g_cursor;
