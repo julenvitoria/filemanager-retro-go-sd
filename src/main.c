@@ -721,7 +721,7 @@ static void do_delete(void)
         path_join(p, g_cwd, ename(&g_ent[idx[i]]));
         if (fs_count(p, &c)) items += c.files + c.dirs + (g_ent[idx[i]].dir ? 1 : 0);
     }
-    op_begin(tr(T_DELETING), 0, items);
+    op_begin(tr(T_DELETING), 0, items + y.files);   /* (every file in the trash and the like too) */
     op_result_t r = OP_OK;
     const char *failed = NULL;
     for (int i = 0; i < n && r != OP_CANCELLED; i++) {
