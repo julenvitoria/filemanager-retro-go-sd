@@ -285,6 +285,10 @@ se queda a medias). Si un archivo ya existe pregunta: Sobrescribir, Sobrescribir
 Cancelar. Al terminar dice cuántos archivos han salido y cuáles se han omitido, no son compatibles o
 vienen dañados (se comprueba el CRC de cada uno).
 
+Lleva su tiempo: la tarjeta se escribe a unos pocos MB por segundo y cada archivo cuesta un poco más
+(cada vez se actualiza la carpeta donde va), así que un zip de cientos de MB, o con miles de archivos
+pequeños, puede tardar varios minutos. En el PC es mucho más rápido.
+
 Archivos guardados sin comprimir o con deflate (lo que hace cualquier programa), también zip64. No:
 zips con contraseña, otros métodos (bzip2, LZMA dentro de un zip...), zips partidos. No hay 7z: 7-Zip
 comprime con un diccionario de muchos MB y la consola tiene unos 130 KB para descomprimir, así que era

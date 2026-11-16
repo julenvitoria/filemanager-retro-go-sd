@@ -279,6 +279,10 @@ A on a `.zip` asks where to: **In folder "name"** (a new folder named after the 
 file already exists it asks: Overwrite, Overwrite all, Skip, or Cancel. At the end it says how many
 files came out, and which were skipped, not supported or damaged (each file's CRC is checked).
 
+It takes its time: the card is written at a few MB per second, and every file costs extra (the
+folder it goes into is updated each time), so a zip of hundreds of MB, or with thousands of small
+files, can take several minutes. On a PC it is much faster.
+
 Stored and deflated files (what every zip tool makes), zip64 too. Not: encrypted zips, other
 methods (bzip2, LZMA inside a zip...), zips split in parts. There is no 7z: 7-Zip packs with a
 dictionary of many MB and the console has about 130 KB to unpack with, so it was far too slow.
