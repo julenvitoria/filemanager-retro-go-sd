@@ -1,5 +1,5 @@
 /*
- * File Manager — what extracting a zip and a 7z have in common: where each entry goes, folders,
+ * File Manager — the common part of extracting an archive: where each entry goes, folders,
  * "already exists", progress. Tools overlay.
  */
 #include <string.h>
@@ -111,7 +111,7 @@ FILE *ex_create(ex_job_t *j, const char *path, bool *skip)
         }
         ex_remove(path);
     }
-    return fopen(path, "w+b");          /* (+: 7z reads back what it wrote, lzma.h) */
+    return fopen(path, "wb");
 }
 
 void ex_problem(ex_job_t *j, const char *name)

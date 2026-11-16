@@ -1,6 +1,6 @@
 /*
- * File Manager — tools overlay: check a file (CRC32 / MD5 / SHA-1) and extract .zip / .7z
- * archives. The archive code itself (extract.c, unzip.c, un7z.c, lzma.c) is plain C that also
+ * File Manager — tools overlay: check a file (CRC32 / MD5 / SHA-1) and extract .zip archives.
+ * The archive code itself (extract.c, unzip.c) is plain C that also
  * builds on a PC (tools/test/run.sh); this file is the console's side of it: dialogs, the
  * progress bar, the result screen.
  */
@@ -105,32 +105,13 @@ bool ex_mkdir(const char *path) { return rg_storage_mkdir(path); }
 bool ex_remove(const char *path) { return remove(path) == 0 || rg_storage_delete(path); }
 bool ex_report(uint64_t done, uint64_t total) { return op_progress_of(done, total); }
 
-bool ex_confirm_slow(uint64_t unpack, uint32_t dict, uint32_t window)
-{
-    (void)window;
-    char l2[64], a[16], b[16];
-    fmt_size(a, unpack);
-    fmt_size(b, dict);
-    snprintf(l2, sizeof l2, "%s %s, %s %s", a, tr(T_7Z_DATA), tr(T_7Z_DICT), b);
-    const char *lines[] = { tr(T_7Z_SLOW1), l2, tr(T_7Z_SLOW2), tr(T_7Z_SLOW3) };
-    const char *buttons[] = { tr(T_7Z_TRY), tr(T_CANCEL) };
-    fm_draw_list();
-    int r = ui_dialog(g_title, lines, 4, buttons, 2);
-    fm_draw_list();
-    op_resume(g_title);
-    return r == 1;
-}
-
 /* Extracts archive into dest; true if anything changed in the current folder */
 void tool_extract(const char *archive, const char *dest)
 {
     static ex_result_t r;
     g_title = tr(T_EXTRACTING);
     op_begin(g_title, 0, 0);
-    size_t n = strlen(archive);
-    bool zip = n > 4 && strcasecmp(archive + n - 4, ".zip") == 0;
-    if (zip) unzip_extract(archive, dest, &r);
-    else un7z_extract(archive, dest, &r);
+    unzip_extract(archive, dest, &r);
     fm_draw_list();
 
     char l1[64], l2[64], l3[96];

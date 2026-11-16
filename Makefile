@@ -32,8 +32,6 @@ src/tools.c \
 src/hash.c \
 src/extract.c \
 src/unzip.c \
-src/un7z.c \
-src/lzma.c \
 src/tinfl_tools.c
 
 CORE_C_INCLUDES := -Isrc

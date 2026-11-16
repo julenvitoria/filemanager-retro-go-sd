@@ -46,8 +46,8 @@ enum {
     T_HASH, T_HASHING, T_BACK_HELP, T_OVERWRITE_ALL,
     T_EXTRACT, T_EXTRACT_HERE, T_EXTRACT_FOLDER, T_EXTRACTING, T_ARC_BAD, T_ARC_UNSUPPORTED, T_ARC_MEMORY,
     T_ARC_FILES, T_ARC_SKIPPED, T_ARC_UNSUP_N, T_ARC_BAD_N, T_ARC_FIRST,
-    T_7Z_SLOW1, T_7Z_SLOW2, T_7Z_SLOW3, T_7Z_DATA, T_7Z_DICT, T_7Z_TRY,
     T_MAC_CLEAN, T_MAC_WHERE, T_MAC_HERE, T_MAC_SUB, T_MAC_CARD, T_MAC_NONE, T_MAC_CONFIRM, T_MAC_DONE,
+    T_MAC_FILES, T_MAC_SYS, T_MAC_SUBS,
     T_BIGGEST, T_BIGGEST_HELP, T_SCANNING,
     T_COUNT
 };
@@ -112,7 +112,7 @@ bool fs_rename(const char *src, const char *dst);        /* firmware rename (fas
 bool fs_free_space(uint64_t *free_bytes, uint64_t *total_bytes);
 bool op_progress(uint64_t done_bytes);                   /* own jobs: false = cancelled */
 bool op_progress_of(uint64_t done_bytes, uint64_t total_bytes);
-op_result_t fs_mac_clean(const char *dir, bool recursive, bool delete, fs_count_t *out);
+op_result_t fs_mac_clean(const char *dir, bool recursive, bool delete, fs_count_t *files, fs_count_t *sys);
 #define FM_TOP_MAX 48
 typedef struct { uint64_t bytes; char path[256]; } fs_top_t;
 int fs_biggest(fs_top_t *top, uint64_t *total);         /* folders by size: count, -1 = cancelled */
@@ -149,7 +149,7 @@ int  kb_activate(char *ch);         /* press the selected key: 0 = character in 
 
 /* ------------------------------------------------------------------ tools (tools.c, overlay) */
 void tool_hash(const char *path);   /* CRC32 / MD5 / SHA-1 of a file, on a screen of their own */
-void tool_extract(const char *archive, const char *dest);   /* .zip, .7z, .7z.001 */
+void tool_extract(const char *archive, const char *dest);   /* .zip */
 bool is_archive_name(const char *name);                       /* filetypes.c */
 
 /* ------------------------------------------------------------------ text editor (editor.c) */
