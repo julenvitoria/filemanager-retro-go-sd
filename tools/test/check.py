@@ -70,36 +70,5 @@ r = subprocess.run([T, 'unzip', bad, os.path.join(W, 'outbad')], capture_output=
 check('bad 1' in r.stdout, 'zip damaged entry reported: ' + r.stdout.strip())
 r = subprocess.run([T, 'unzip', os.path.join(W, 'h.bin'), os.path.join(W, 'outnot')], capture_output=True, text=True)
 check(r.returncode == 2, 'not a zip: ' + r.stdout.strip())
-# 7z: what tools/test/make7z.py writes, every coder and layout this supports
-src = os.path.join(W, 'src7'); os.makedirs(os.path.join(src, 'sub'), exist_ok=True)
-seven = {'a.txt': blob(300000, 'text'), 'sub/b.bin': blob(200000, 'rand'), 'zero.bin': blob(600000, 'zero'),
-         'exe.bin': bytes(rnd.choice([0xE8, 0xE9, 0x00, 0x12, 0xFF]) for _ in range(400000)), 'empty.txt': b'',
-         'ñ.txt': b'utf-16 name'}
-for k, v in seven.items(): open(os.path.join(src, k), 'wb').write(v)
-names = list(seven)
-for opts in (['lzma', 'solid'], ['lzma2', 'solid'], ['copy', 'single'],
-             ['lzma2', 'single', 'encheader'], ['lzma2', 'solid', 'encheader', '1']):
-    a7 = os.path.abspath(os.path.join(W, '_'.join(opts) + '.7z'))
-    subprocess.run([sys.executable, '-I', os.path.abspath('tools/test/make7z.py'), a7] + opts + ['--'] + names, cwd=src, check=True)
-    out = os.path.join(W, 'o7_' + '_'.join(opts))
-    r = subprocess.run([T, 'un7z', a7, out], capture_output=True, text=True)
-    ok = r.returncode == 0 and all(open(os.path.join(out, k), 'rb').read() == v for k, v in seven.items())
-    check(ok, '7z %s: %s' % (' '.join(opts), r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr))
-
-# BCJ with everything inside the window (with more, the files hold the filtered bytes: refused)
-small = {'x.exe': bytes(rnd.choice([0xE8, 0xE9, 0x00, 0x12, 0xFF, 0x0F, 0x80]) for _ in range(100000)), 'y.txt': blob(20000, 'text')}
-for k, v in small.items(): open(os.path.join(src, k), 'wb').write(v)
-for m in ('lzma', 'lzma2'):
-    a7 = os.path.abspath(os.path.join(W, 'bcj_%s.7z' % m))
-    subprocess.run([sys.executable, '-I', os.path.abspath('tools/test/make7z.py'), a7, m, 'bcj', 'solid', '--'] + list(small), cwd=src, check=True)
-    out = os.path.join(W, 'o7_bcj_' + m)
-    r = subprocess.run([T, 'un7z', a7, out], capture_output=True, text=True)
-    ok = r.returncode == 0 and all(open(os.path.join(out, k), 'rb').read() == v for k, v in small.items())
-    check(ok, '7z bcj %s small: %s' % (m, r.stdout.strip().splitlines()[-1]))
-a7 = os.path.abspath(os.path.join(W, 'lzma_bcj_solid.7z'))
-subprocess.run([sys.executable, '-I', os.path.abspath('tools/test/make7z.py'), a7, 'lzma', 'bcj', 'solid', '--'] + names, cwd=src, check=True)
-r = subprocess.run([T, 'un7z', a7, os.path.join(W, 'o7big')], capture_output=True, text=True)
-check('x86 filter' in r.stdout, '7z bcj big: refused, said so')
-
 print('FAILURES: %d' % fails)
 sys.exit(1 if fails else 0)

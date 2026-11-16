@@ -431,9 +431,13 @@ op_result_t op_move(const char *src, const char *dst)
 }
 
 /* ================================================================ macOS leftovers */
-/* What macOS (and iPhone/iPad Files) leave on a FAT card: an AppleDouble "._name" for every file
- * copied, ".DS_Store" in each folder it opens, and its own folders at the top of the card. Only
- * files are taken as "._" leftovers (a folder with such a name is somebody's). */
+/* What macOS (and iPhone/iPad Files) leave on a FAT card:
+ *  - an AppleDouble "._name" for every file copied, ".DS_Store" in each folder it opens (files only:
+ *    a folder with such a name is somebody's);
+ *  - "__MACOSX" folders, anywhere: what unzipping a zip made on a Mac leaves (more "._" files);
+ *  - at the top of the card, its own folders: the Spotlight index, the trash (".Trashes": what was
+ *    deleted from the card in the Finder, still taking up space) and the like -- and, while at it,
+ *    the trash Linux desktops make there (".Trash-1000"). */
 static const char *const MAC_ROOT_DIRS[] = { ".Spotlight-V100", ".Trashes", ".fseventsd", ".TemporaryItems", NULL };
 
 static bool mac_file(const char *name)
@@ -441,8 +445,11 @@ static bool mac_file(const char *name)
     return (name[0] == '.' && name[1] == '_') || strcmp(name, ".DS_Store") == 0;
 }
 
-static bool mac_root_dir(const char *name)
+static bool mac_dir(const char *name, bool root)
 {
+    if (strcmp(name, "__MACOSX") == 0) return true;
+    if (!root) return false;
+    if (strncmp(name, ".Trash-", 7) == 0) return true;
     for (int i = 0; MAC_ROOT_DIRS[i]; i++)
         if (strcmp(name, MAC_ROOT_DIRS[i]) == 0) return true;
     return false;
@@ -451,7 +458,7 @@ static bool mac_root_dir(const char *name)
 static char g_m[FM_PATH_MAX];      /* the walk's own buffer: op_delete() uses g_a */
 
 /* g_m = folder ("" = root). delete=false: only counts. */
-static op_result_t mac_rec(bool recursive, bool delete, fs_count_t *c)
+static op_result_t mac_rec(bool recursive, bool delete, fs_count_t *files, fs_count_t *sys)
 {
     DIR d;
     FILINFO fi;
@@ -466,20 +473,20 @@ static op_result_t mac_rec(bool recursive, bool delete, fs_count_t *c)
         if (len + 1 + n >= FM_PATH_MAX) continue;
         g_m[len] = '/'; strcpy(g_m + len + 1, fi.fname);
         bool dir = (fi.fattrib & AM_DIR) != 0;
-        if (dir && root && mac_root_dir(fi.fname)) {
+        if (dir && mac_dir(fi.fname, root)) {
             fs_count_t sub;
-            if (fs_count(g_m, &sub)) { c->files += sub.files; c->bytes += sub.bytes; }
-            c->dirs++;
+            if (fs_count(g_m, &sub)) { sys->files += sub.files; sys->bytes += sub.bytes; }
+            sys->dirs++;
             if (delete) {
                 uint64_t keep_b = op.done_bytes; uint32_t keep_i = op.done_items;
                 r = op_delete(g_m);
                 op.done_bytes = keep_b; op.done_items = keep_i + 1;
             }
         } else if (dir) {
-            if (recursive) r = mac_rec(true, delete, c);
+            if (recursive) r = mac_rec(true, delete, files, sys);
         } else if (mac_file(fi.fname)) {
-            c->files++;
-            c->bytes += fi.fsize;
+            files->files++;
+            files->bytes += fi.fsize;
             if (delete) {
                 if (remove(g_m) != 0 && !rg_storage_delete(g_m)) r = OP_ERROR;
                 else op.done_items++;
@@ -491,13 +498,15 @@ static op_result_t mac_rec(bool recursive, bool delete, fs_count_t *c)
     return r;
 }
 
-/* The macOS leftovers in a folder (and below it): counted (delete=false) or deleted. The
- * folders macOS makes for itself only count at the top of the card. */
-op_result_t fs_mac_clean(const char *dir, bool recursive, bool delete, fs_count_t *out)
+/* The macOS leftovers in a folder (and below it): counted (delete=false) or deleted. files: the
+ * "._" and .DS_Store files; sys: the folders (__MACOSX, and at the top of the card the trash and
+ * the like), with what they hold. */
+op_result_t fs_mac_clean(const char *dir, bool recursive, bool delete, fs_count_t *files, fs_count_t *sys)
 {
-    memset(out, 0, sizeof *out);
+    memset(files, 0, sizeof *files);
+    memset(sys, 0, sizeof *sys);
     snprintf(g_m, sizeof g_m, "%s", strcmp(dir, "/") == 0 ? "" : dir);
-    return mac_rec(recursive, delete, out);
+    return mac_rec(recursive, delete, files, sys);
 }
 
 /* ================================================================ biggest folders */

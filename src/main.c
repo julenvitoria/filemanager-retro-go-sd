@@ -145,20 +145,17 @@ static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_ARC_UNSUP_N]    = S("unsupported:", "no compatibles:"),
     [T_ARC_BAD_N]      = S("damaged:", "dañados:"),
     [T_ARC_FIRST]      = S("First:", "Primero:"),
-    [T_7Z_SLOW1]       = S("Big 7z for the console:", "7z grande para la consola:"),
-    [T_7Z_SLOW2]       = S("it may take a long time.", "puede tardar mucho."),
-    [T_7Z_SLOW3]       = S("(B cancels at any time)", "(B cancela en cualquier momento)"),
-    [T_7Z_DATA]        = S("of data", "de datos"),
-    [T_7Z_DICT]        = S("dictionary", "diccionario"),
-    [T_7Z_TRY]         = S("Try it", "Intentarlo"),
     [T_MAC_CLEAN]      = S("Clean Mac files", "Limpiar archivos de Mac"),
-    [T_MAC_WHERE]      = S("._ files and .DS_Store", "Archivos ._ y .DS_Store"),
+    [T_MAC_WHERE]      = S("._, .DS_Store, __MACOSX, trash", "._, .DS_Store, __MACOSX, papelera"),
     [T_MAC_HERE]       = S("This folder", "Esta carpeta"),
     [T_MAC_SUB]        = S("And its subfolders", "Y sus subcarpetas"),
     [T_MAC_CARD]       = S("Clean Mac files (whole card)", "Limpiar archivos de Mac (toda)"),
     [T_MAC_NONE]       = S("No Mac files here", "No hay archivos de Mac"),
     [T_MAC_CONFIRM]    = S("Delete the Mac files?", "¿Borrar los archivos de Mac?"),
     [T_MAC_DONE]       = S("Deleted", "Borrados"),
+    [T_MAC_SUBS]       = S("subfolders", "subcarpetas"),
+    [T_MAC_FILES]      = S("._ and .DS_Store", "._ y .DS_Store"),
+    [T_MAC_SYS]        = S("Trash, __MACOSX...", "Papelera, __MACOSX..."),
     [T_BIGGEST]        = S("What takes most space", "Lo que más ocupa"),
     [T_BIGGEST_HELP]   = S("A:Go there B:Back", "A:Ir a la carpeta B:Volver"),
     [T_SCANNING]       = S("Measuring the card", "Midiendo la tarjeta"),
@@ -832,28 +829,34 @@ static void do_info(void)
 /* macOS leftovers in dir (and below): count, ask, delete */
 static void do_mac_clean(const char *dir, bool recursive)
 {
-    fs_count_t c;
+    fs_count_t f, y;
     op_begin(tr(T_COUNTING), 0, 0);
-    op_result_t r = fs_mac_clean(dir, recursive, false, &c);
+    op_result_t r = fs_mac_clean(dir, recursive, false, &f, &y);
     draw_list();
     if (r == OP_CANCELLED) return;
-    if (!c.files && !c.dirs) { ui_message(tr(T_MAC_CLEAN), tr(T_MAC_NONE), NULL, NULL, false); return; }
-    char l1[64], l2[64], sz[16];
-    fmt_size(sz, c.bytes);
-    snprintf(l1, sizeof l1, "%lu %s (%s)", (unsigned long)(c.files + c.dirs), tr(T_ITEMS), sz);
-    snprintf(l2, sizeof l2, "%s", strcmp(dir, "/") == 0 ? "/" : path_base(dir));
-    if (!ui_message(tr(T_MAC_CONFIRM), l1, l2, recursive ? tr(T_MAC_SUB) : NULL, true)) return;
+    uint32_t items = f.files + y.dirs;
+    if (!items) { ui_message(tr(T_MAC_CLEAN), tr(T_MAC_NONE), NULL, NULL, false); return; }
+    /* what each kind adds up to: the trash on its own line, it can be big (what was deleted in
+       the Finder is still there) */
+    char l1[64], l2[64], l3[64], sz[16], total[16];
+    fmt_size(sz, f.bytes);
+    snprintf(l1, sizeof l1, "%s: %lu (%s)", tr(T_MAC_FILES), (unsigned long)f.files, sz);
+    fmt_size(sz, y.bytes);
+    snprintf(l2, sizeof l2, "%s: %s", tr(T_MAC_SYS), sz);
+    snprintf(l3, sizeof l3, "%s%s%s", strcmp(dir, "/") == 0 ? "/" : path_base(dir), recursive ? " + " : "", recursive ? tr(T_MAC_SUBS) : "");
+    if (!ui_message(tr(T_MAC_CONFIRM), f.files ? l1 : NULL, y.dirs ? l2 : NULL, l3, true)) return;
     draw_list();
-    op_begin(tr(T_DELETING), 0, c.files + c.dirs);
-    fs_count_t d;
-    r = fs_mac_clean(dir, recursive, true, &d);
+    op_begin(tr(T_DELETING), 0, items);
+    fs_count_t f2, y2;
+    r = fs_mac_clean(dir, recursive, true, &f2, &y2);
     int keep = g_cursor;
     load_dir(NULL);
     g_cursor = keep < g_count ? keep : (g_count ? g_count - 1 : 0);
     cursor_move(0);
     draw_list();
     if (r != OP_OK) { show_result(r, ""); return; }
-    snprintf(l1, sizeof l1, "%s: %lu %s (%s)", tr(T_MAC_DONE), (unsigned long)(c.files + c.dirs), tr(T_ITEMS), sz);
+    fmt_size(total, f.bytes + y.bytes);
+    snprintf(l1, sizeof l1, "%s: %s", tr(T_MAC_DONE), total);
     ui_message(tr(T_MAC_CLEAN), l1, NULL, NULL, false);
 }
 
@@ -931,10 +934,9 @@ static void do_extract(void)
     char name[256], p[FM_PATH_MAX], dest[FM_PATH_MAX], folder[256], label[64];
     snprintf(name, sizeof name, "%s", ename(&g_ent[g_cursor]));
     path_join(p, g_cwd, name);
-    /* the folder: the name without ".zip" / ".7z" / ".7z.001" */
+    /* the folder: the name without ".zip" */
     snprintf(folder, sizeof folder, "%s", name);
     char *dot = strrchr(folder, '.');
-    if (dot && strcmp(dot, ".001") == 0) { *dot = '\0'; dot = strrchr(folder, '.'); }
     if (dot && dot != folder) *dot = '\0';
     snprintf(label, sizeof label, "%s \"%.*s%s\"", tr(T_EXTRACT_FOLDER), 18, folder, strlen(folder) > 18 ? ".." : "");
     const char *lines[] = { name };

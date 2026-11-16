@@ -1,4 +1,4 @@
-/* File Manager — archive extraction (tools overlay): extract.c (common), unzip.c, un7z.c.
+/* File Manager — archive extraction (tools overlay): extract.c (common), unzip.c.
  * Plain C over stdio plus the few calls below, so the same files build on a PC to be tested. */
 #pragma once
 #include <stdio.h>
@@ -19,7 +19,6 @@ typedef struct {
 
 /* Extract everything in the archive into the folder dest (created if needed). */
 void unzip_extract(const char *archive, const char *dest, ex_result_t *r);
-void un7z_extract(const char *archive, const char *dest, ex_result_t *r);
 
 /* ---------------------------------------------------------------- extract.c */
 typedef struct {
@@ -48,7 +47,5 @@ bool ex_path_exists(const char *path, bool *is_dir);
 bool ex_mkdir(const char *path);
 bool ex_remove(const char *path);
 bool ex_report(uint64_t done, uint64_t total);      /* progress; false = cancelled */
-/* a 7z whose dictionary is bigger than the window: it will read back from the card a lot */
-bool ex_confirm_slow(uint64_t unpack, uint32_t dict, uint32_t window);
 extern uint8_t *ex_mem;                             /* work memory (fm_scratch) */
 extern uint32_t ex_mem_size;

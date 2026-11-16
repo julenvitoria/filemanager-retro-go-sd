@@ -1,4 +1,4 @@
-/* PC test of the tools overlay's portable parts (hash.c, extract.c, unzip.c, un7z.c):
+/* PC test of the tools overlay's portable parts (hash.c, extract.c, unzip.c):
  *   tools/test/run.sh        builds this and checks it against Python's zipfile / hashlib */
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,11 +23,6 @@ bool ex_path_exists(const char *path, bool *is_dir)
 bool ex_mkdir(const char *path) { return mkdir(path, 0777) == 0; }
 bool ex_remove(const char *path) { return remove(path) == 0; }
 bool ex_report(uint64_t done, uint64_t total) { (void)done; (void)total; return true; }
-bool ex_confirm_slow(uint64_t unpack, uint32_t dict, uint32_t window)
-{
-    printf("slow: %llu bytes, dictionary %u, window %u\n", (unsigned long long)unpack, dict, window);
-    return true;
-}
 
 int main(int argc, char **argv)
 {
@@ -47,8 +42,7 @@ int main(int argc, char **argv)
     if (argc >= 4) {
         if (argc >= 5) answer = atoi(argv[4]);
         ex_result_t r;
-        if (strcmp(argv[1], "unzip") == 0) unzip_extract(argv[2], argv[3], &r);
-        else un7z_extract(argv[2], argv[3], &r);
+        unzip_extract(argv[2], argv[3], &r);
         printf("status %d files %u dirs %u skipped %u unsupported %u bad %u problem '%s' detail '%s'\n",
                r.status, r.files, r.dirs, r.skipped, r.unsupported, r.bad, r.first_problem, r.detail);
         return r.status;
