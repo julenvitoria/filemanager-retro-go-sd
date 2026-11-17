@@ -81,9 +81,9 @@ The options depend on where the cursor is and whether something is selected or i
 | Select all / Deselect all | Selects or deselects everything in the folder |
 | Clear clipboard | Forgets what was copied or cut |
 | Extract | For a `.zip`: section 11. Also with A |
-| Check (CRC32/MD5/SHA-1) | The file's checksums, on a screen of their own (B to go back) |
-| Clean Mac files | Deletes the macOS leftovers of this folder, or of it and its subfolders: section 12 |
-| SD card | Total capacity, used and free space (needs a recent firmware, see "Firmware"), and from there **What takes most space** and **Clean Mac files (whole card)** |
+| Tools... → Check (CRC32/MD5/SHA-1) | The file's checksums, on a screen of their own (B to go back) |
+| Tools... → Clean Mac files | Deletes the macOS leftovers of this folder, or of it and its subfolders: section 12 |
+| Tools... → SD card | Total capacity, used and free space (needs a recent firmware, see "Firmware"), and from there **What takes most space** and **Clean Mac files (whole card)** |
 | Exit | Back to the Retro-Go menu |
 
 ## 3. Copy, move and paste
@@ -296,7 +296,7 @@ folders; and at the top of the card go its own folders: `.Spotlight-V100`, `.fse
 there, taking up space**, until the trash is emptied with the card in the Mac. Linux desktops do the
 same with `.Trash-1000`. None of it is any use on the console.
 
-**GAME → Clean Mac files** offers **This folder** or **And its subfolders**; **GAME → SD card →
+**GAME → Tools → Clean Mac files** offers **This folder** or **And its subfolders**; **GAME → Tools → SD card →
 Clean Mac files (whole card)** does the whole card. It counts first and asks before deleting,
 with the `._`/`.DS_Store` files and the folders (trash, `__MACOSX`...) on lines of their own, so a
 big trash shows. The trash and the other top-of-card folders are only looked at in the card's top

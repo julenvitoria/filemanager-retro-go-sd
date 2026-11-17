@@ -83,9 +83,9 @@ Las opciones cambian según dónde esté el cursor y si hay algo seleccionado o 
 | Seleccionar todo / Quitar selección | Selecciona o deselecciona todo lo de la carpeta |
 | Vaciar portapapeles | Olvida lo copiado o cortado |
 | Descomprimir | En un `.zip`: apartado 11. También con A |
-| Comprobar (CRC32/MD5/SHA-1) | Las sumas de comprobación del archivo, en una pantalla aparte (B para volver) |
-| Limpiar archivos de Mac | Borra los restos de macOS de esta carpeta, o de ella y sus subcarpetas: apartado 12 |
-| Tarjeta SD | Capacidad total, espacio usado y libre (necesita el firmware nuevo, ver "Firmware"), y desde ahí **Lo que más ocupa** y **Limpiar archivos de Mac (toda)** |
+| Herramientas... → Comprobar (CRC32/MD5/SHA-1) | Las sumas de comprobación del archivo, en una pantalla aparte (B para volver) |
+| Herramientas... → Limpiar archivos de Mac | Borra los restos de macOS de esta carpeta, o de ella y sus subcarpetas: apartado 12 |
+| Herramientas... → Tarjeta SD | Capacidad total, espacio usado y libre (necesita el firmware nuevo, ver "Firmware"), y desde ahí **Lo que más ocupa** y **Limpiar archivos de Mac (toda)** |
 | Salir | Vuelve al menú de Retro-Go |
 
 ## 3. Copiar, mover y pegar
@@ -303,7 +303,7 @@ tarjeta FAT y un `.DS_Store` en cada carpeta que abren; descomprimir en un Mac d
 ocupando sitio**, hasta que se vacía la papelera con la tarjeta puesta en el Mac. Los escritorios de
 Linux hacen lo mismo con `.Trash-1000`. En la consola nada de eso sirve.
 
-**GAME → Limpiar archivos de Mac** ofrece **Esta carpeta** o **Y sus subcarpetas**; **GAME → Tarjeta
+**GAME → Herramientas → Limpiar archivos de Mac** ofrece **Esta carpeta** o **Y sus subcarpetas**; **GAME → Herramientas → Tarjeta
 SD → Limpiar archivos de Mac (toda)** limpia la tarjeta entera. Primero cuenta y pregunta antes de
 borrar, con los `._`/`.DS_Store` y las carpetas (papelera, `__MACOSX`...) en líneas separadas, para que
 se vea si la papelera ocupa mucho. La papelera y las demás carpetas de la raíz solo se miran en la

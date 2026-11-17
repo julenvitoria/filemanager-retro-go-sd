@@ -145,6 +145,7 @@ static const gw_i18n_entry_t STR[T_COUNT][3] = {
     [T_ARC_UNSUP_N]    = S("unsupported:", "no compatibles:"),
     [T_ARC_BAD_N]      = S("damaged:", "dañados:"),
     [T_ARC_FIRST]      = S("First:", "Primero:"),
+    [T_TOOLS]          = S("Tools...", "Herramientas..."),
     [T_MAC_CLEAN]      = S("Clean Mac files", "Limpiar archivos de Mac"),
     [T_MAC_WHERE]      = S("._, .DS_Store, __MACOSX, trash", "._, .DS_Store, __MACOSX, papelera"),
     [T_MAC_HERE]       = S("This folder", "Esta carpeta"),
@@ -1088,7 +1089,8 @@ static void do_newfile(void)
 }
 
 enum { A_OPEN = 1, A_TEXT, A_EDIT, A_HEX, A_NEWFILE, A_COPY, A_CUT, A_PASTE, A_CLEAR, A_RENAME, A_DELETE, A_NEWDIR,
-       A_INFO, A_MARKALL, A_UNMARKALL, A_SD, A_EXIT, A_EXTRACT, A_HASH, A_MAC };
+       A_INFO, A_MARKALL, A_UNMARKALL, A_SD, A_EXIT, A_EXTRACT, A_HASH, A_MAC, A_TOOLS };
+#define DIALOG_MAX 18                     /* retro-go's odroid_overlay.c: MAX_OPTIONS_COUNT */
 
 static int actions_menu(void)
 {
@@ -1118,17 +1120,33 @@ static int actions_menu(void)
     ch[n++] = (odroid_dialog_choice_t){ A_NEWDIR, tr(T_NEWDIR), "", 1, NULL };
     ch[n++] = (odroid_dialog_choice_t){ A_NEWFILE, tr(T_NEWFILE), "", 1, NULL };
     if (have && !g_marked) ch[n++] = (odroid_dialog_choice_t){ A_INFO, tr(T_INFO), "", 1, NULL };
-    if (file) ch[n++] = (odroid_dialog_choice_t){ A_HASH, tr(T_HASH), "", 1, NULL };
-    ch[n++] = (odroid_dialog_choice_t){ A_MAC, tr(T_MAC_CLEAN), "", 1, NULL };
+    ch[n++] = (odroid_dialog_choice_t){ A_TOOLS, tr(T_TOOLS), "", 1, NULL };
     ch[n++] = (odroid_dialog_choice_t)ODROID_DIALOG_CHOICE_SEPARATOR;
     if (have) ch[n++] = (odroid_dialog_choice_t){ A_MARKALL, tr(T_MARK_ALL), "", 1, NULL };
     if (g_marked) ch[n++] = (odroid_dialog_choice_t){ A_UNMARKALL, tr(T_UNMARK_ALL), "", 1, NULL };
     if (g_clip_n) ch[n++] = (odroid_dialog_choice_t){ A_CLEAR, tr(T_CLEAR_CLIP), "", 1, NULL };
-    ch[n++] = (odroid_dialog_choice_t){ A_SD, tr(T_SDINFO), "", 1, NULL };
     ch[n++] = (odroid_dialog_choice_t){ A_EXIT, tr(T_EXIT), "", 1, NULL };
+    /* the firmware's dialog shows nothing at all past MAX_OPTIONS_COUNT (18) entries: the most
+       this menu has is 18 (a .zip, the clipboard full); the separator goes first if ever needed */
+    if (n > DIALOG_MAX) {
+        for (int i = 0; i < n; i++)
+            if (ch[i].id == 0x0F0F0F0E) { memmove(&ch[i], &ch[i + 1], (n - i - 1) * sizeof ch[0]); n--; break; }
+        if (n > DIALOG_MAX) n = DIALOG_MAX;
+    }
     ch[n++] = (odroid_dialog_choice_t)ODROID_DIALOG_CHOICE_LAST;
     dialog_prepare();
-    return odroid_overlay_dialog(tr(T_ACTIONS), ch, 0, &repaint_current, 0);
+    int r = odroid_overlay_dialog(tr(T_ACTIONS), ch, 0, &repaint_current, 0);
+    if (r != A_TOOLS) return r;
+
+    /* Tools: checking a file, cleaning up after a Mac, the card's details */
+    n = 0;
+    if (file) ch[n++] = (odroid_dialog_choice_t){ A_HASH, tr(T_HASH), "", 1, NULL };
+    ch[n++] = (odroid_dialog_choice_t){ A_MAC, tr(T_MAC_CLEAN), "", 1, NULL };
+    ch[n++] = (odroid_dialog_choice_t){ A_SD, tr(T_SDINFO), "", 1, NULL };
+    ch[n++] = (odroid_dialog_choice_t)ODROID_DIALOG_CHOICE_LAST;
+    fm_draw_list();
+    dialog_prepare();
+    return odroid_overlay_dialog(tr(T_TOOLS), ch, 0, &repaint_current, 0);
 }
 
 /* ================================================================ main */
