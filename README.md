@@ -106,13 +106,14 @@ A full-screen keyboard with the name at the top:
 | Button | Action |
 |---|---|
 | D-pad | Move between keys |
-| A | Type the key |
-| B | Delete the last character |
+| A | Type the key (hold it to repeat) |
+| B | Delete the character before the cursor (hold it to repeat) |
 | TIME | Switch between letters and symbols |
 | GAME | Accept |
 | PAUSE | Cancel |
 
-The bottom row also has **Space**, **Del**, **Shift**, **OK** and **Cancel**. **Shift**: one press
+The bottom row also has **Space**, **<** and **>** (move the cursor through the name: letters
+are typed and deleted at the cursor), **Del**, **Shift**, **OK** and **Cancel**. **Shift**: one press
 (green) capitalises only the next letter; two presses (red) lock it; three release it. Names with
 characters the card does not allow (`\ / : * ? " < > |`) are rejected.
 
@@ -131,6 +132,9 @@ The editor has two modes, switched with **TIME**:
 | B | Delete the previous character | Delete the previous character |
 | TIME | Hide the keyboard (more lines visible) | Show the keyboard |
 | GAME | Editor menu | Editor menu |
+
+Like a PC keyboard, holding **A** on a key (letters, arrows, Bksp, Del, Enter, Space…) or holding
+**B** types it once, waits a moment and then repeats it until you let go. Shift is the exception.
 
 **Special keys:** Bksp (backspace), Del (deletes the character under the cursor), Enter (new
 line), Tab, Space, arrows `< > ^ v`, Home/End (start/end of line) and PgUp/PgDn.

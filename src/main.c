@@ -274,6 +274,7 @@ void ui_text_w(int col, int row, int width, const char *s, uint16_t fg, uint16_t
  * darken it, so it must come from an untouched copy (copying the screen itself would darken
  * it again on each frame until it is black). dialog_prepare() saves what is on screen now. */
 static uint16_t g_dialog_bg[FM_W * FM_H];
+static void input_forget_held(void);
 static void dialog_prepare(void)
 {
     lcd_sleep_while_swap_pending();
@@ -322,6 +323,7 @@ int ui_message(const char *title, const char *l1, const char *l2, const char *l3
     ch[n++] = (odroid_dialog_choice_t)ODROID_DIALOG_CHOICE_LAST;
     dialog_prepare();
     int r = odroid_overlay_dialog(title, ch, yes_no ? first + 1 : first, &repaint_current, 0);
+    input_forget_held();     /* a key still held from the dialog is not a press, nor a repeat */
     return r == 1;
 }
 
@@ -338,6 +340,7 @@ int ui_choice(const char *title, const char *l1, const char *b1, const char *b2,
     ch[n++] = (odroid_dialog_choice_t)ODROID_DIALOG_CHOICE_LAST;
     dialog_prepare();
     int r = odroid_overlay_dialog(title, ch, first, &repaint_current, 0);
+    input_forget_held();     /* a key still held from the dialog is not a press, nor a repeat */
     return (r >= 1 && r <= 3) ? r : 0;
 }
 
@@ -354,6 +357,7 @@ int ui_dialog(const char *title, const char *const *lines, int nlines, const cha
     ch[n++] = (odroid_dialog_choice_t)ODROID_DIALOG_CHOICE_LAST;
     dialog_prepare();
     int r = odroid_overlay_dialog(title, ch, first, &repaint_current, 0);
+    input_forget_held();     /* a key still held from the dialog is not a press, nor a repeat */
     return (r >= 1 && r <= nbuttons) ? r : 0;
 }
 
@@ -384,6 +388,15 @@ uint32_t input_poll(void)
 void (*fm_menu_hook)(bool entering);
 static uint32_t g_held = ~0u;     /* ignore keys still down from the previous screen */
 static uint32_t g_repeat_at = 0;
+static uint32_t g_repeat_keys;    /* keys besides the D-pad that auto-repeat (text input only) */
+static bool     g_was_repeat;
+
+static void input_forget_held(void) { g_held = ~0u; }
+
+/* Text input turns on PC-style auto-repeat for A and B: hold a key and, after a pause, it
+ * repeats. Everywhere else they stay single presses, so holding A never confirms twice. */
+void input_set_repeat(uint32_t keys) { g_repeat_keys = keys; g_held = ~0u; }
+bool input_was_repeat(void) { return g_was_repeat; }
 
 /* One poll step. Returns fresh presses (D-pad auto-repeats), K_REDRAW after a firmware menu
  * (PAUSE / POWER), or 0 if nothing happened. */
@@ -422,14 +435,18 @@ static uint32_t input_step(void)
     uint32_t fresh = k & ~g_held;
     if (g_held == ~0u) fresh = 0;
     g_held = k;
+    const uint32_t dpad = K_UP | K_DOWN | K_LEFT | K_RIGHT;
     if (fresh) {
-        g_repeat_at = now + 350;
+        /* a typed key waits a bit longer before repeating, like a PC keyboard */
+        g_repeat_at = now + ((fresh & g_repeat_keys) ? 450 : 350);
+        g_was_repeat = false;
         return fresh;
     }
-    const uint32_t dpad = K_UP | K_DOWN | K_LEFT | K_RIGHT;
-    if ((k & dpad) && (int32_t)(now - g_repeat_at) >= 0) {
-        g_repeat_at = now + 60;
-        return k & dpad;
+    uint32_t rep = k & (dpad | g_repeat_keys);
+    if (rep && (int32_t)(now - g_repeat_at) >= 0) {
+        g_repeat_at = now + ((rep & g_repeat_keys) ? 70 : 60);
+        g_was_repeat = true;
+        return rep;
     }
     return 0;
 }

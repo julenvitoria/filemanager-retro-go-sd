@@ -2,7 +2,7 @@
  * File Manager — text editor with an on-screen keyboard docked at the bottom
  * (same idea as gw-dos-xtulator's keyboard: variable-width keys, Shift latches).
  *
- *   Keyboard shown:  D-pad picks a key, A presses it, B = backspace,
+ *   Keyboard shown:  D-pad picks a key, A presses it (hold to repeat), B = backspace,
  *                    TIME hides the keyboard (cursor mode), GAME = menu (save / exit)
  *   Cursor mode:     D-pad moves the text cursor, A or TIME shows the keyboard,
  *                    B = backspace, GAME = menu
@@ -277,7 +277,17 @@ static void press(int code, char ch, int rows)
     g_want = -1;
 }
 
+static bool edit_loop(const char *path);
+
 bool edit_text(const char *path)
+{
+    input_set_repeat(K_A | K_B);        /* hold a key (or B) to repeat it, like a PC keyboard */
+    bool r = edit_loop(path);
+    input_set_repeat(0);
+    return r;
+}
+
+static bool edit_loop(const char *path)
 {
     if (!ed_load(path)) {
         char sz[16];
@@ -305,7 +315,7 @@ bool edit_text(const char *path)
             if (k & K_RIGHT) { g_cur = next_cp(g_cur); g_want = -1; }
             if (k & K_UP)    move_lines(-1);
             if (k & K_DOWN)  move_lines(1);
-            if (k & K_A)     kb = true;
+            if (k & K_A)     { kb = true; input_set_repeat(K_A | K_B); }   /* that A only shows it */
         }
         if (k & K_GAME) {
             int a = g_dirty ? ui_choice(tr(T_ED_MENU), path_base(path), tr(T_SAVE), tr(T_ED_SAVE_EXIT), tr(T_ED_EXIT_NOSAVE))

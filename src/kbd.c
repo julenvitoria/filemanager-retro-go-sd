@@ -101,6 +101,9 @@ void kb_nav(uint32_t k)
 int kb_activate(char *ch)
 {
     const kb_key_t *key = &g_rows[kb_row][kb_col];
+    /* holding A repeats a key; Shift and the Hex/Text switch are not keys you hold */
+    if ((key->code == KC_SHIFT || key->code == KC_SWAP) && input_was_repeat())
+        return -1;
     if (key->code == KC_SHIFT) {
         g_shift = (g_shift + 1) % 3;
         return -1;

@@ -73,6 +73,8 @@ void fm_draw_list(void);            /* the file list again (a dialog's backgroun
 enum { K_UP = 1, K_DOWN = 2, K_LEFT = 4, K_RIGHT = 8, K_A = 16, K_B = 32, K_GAME = 64, K_TIME = 128,
        K_PAUSE = 256, K_POWER = 512, K_REDRAW = 1 << 16 };
 uint32_t input_wait(void);          /* next key press (with auto-repeat for the D-pad) */
+void input_set_repeat(uint32_t keys); /* also auto-repeat these (A/B while typing); 0 = off */
+bool input_was_repeat(void);         /* the last key from input_wait() was a repeat */
 uint32_t input_poll(void);          /* currently held keys, no waiting */
 uint32_t input_poll_pressed(void);  /* fresh presses since the last call, K_REDRAW after a firmware menu */
 void     HAL_Delay(uint32_t ms);

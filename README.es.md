@@ -107,13 +107,14 @@ Es un teclado a pantalla completa con el nombre arriba:
 | Botón | Acción |
 |---|---|
 | Cruceta | Moverse por las teclas |
-| A | Escribir la tecla |
-| B | Borrar el último carácter |
+| A | Escribir la tecla (mantenla pulsada para repetir) |
+| B | Borrar el carácter anterior al cursor (mantenlo pulsado para repetir) |
 | TIME | Cambiar entre letras y símbolos |
 | GAME | Aceptar |
 | PAUSE | Cancelar |
 
-En la fila de abajo también tiene **Espacio**, **Borrar**, **Mayús**, **OK** y **Cancelar**.
+En la fila de abajo también tiene **Espacio**, **<** y **>** (mueven el cursor por el nombre: se
+escribe y se borra donde está el cursor), **Borrar**, **Mayús**, **OK** y **Cancelar**.
 **Mayús**: una pulsación (verde) pone en mayúsculas solo la siguiente letra; dos (rojo) la dejan
 fija; tres la quitan. No deja aceptar nombres con caracteres que no admite la tarjeta (`\ / : * ? " < > |`).
 
@@ -132,6 +133,10 @@ El editor tiene dos modos, que se cambian con **TIME**:
 | B | Borrar el carácter anterior | Borrar el carácter anterior |
 | TIME | Ocultar el teclado (se ven más líneas) | Mostrar el teclado |
 | GAME | Menú del editor | Menú del editor |
+
+Como en el teclado de un PC, si mantienes pulsada **A** sobre una tecla (letras, flechas, Borra,
+Supr, Intro, Espacio…) o mantienes **B**, se escribe una vez, espera un momento y luego se repite
+hasta que la sueltas. La excepción es Mayús.
 
 **Teclas especiales:** Borra (retroceso), Supr (borra el carácter del cursor), Intro (nueva
 línea), Tab, Espacio, flechas `< > ^ v`, Ini/Fin (principio/final de línea) y RePag/AvPag.
