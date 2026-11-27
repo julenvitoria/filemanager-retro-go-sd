@@ -53,7 +53,7 @@ include $(GNW_CORE_SDK)/Makefile
 
 CFLAGS += -std=gnu11 -Wno-format-truncation
 
-CORE_VERSION ?= 1.2.0
+CORE_VERSION ?= 1.2.1
 
 .PHONY: pack cover
 cover: $(COVER_JPG)
