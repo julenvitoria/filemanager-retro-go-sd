@@ -68,6 +68,10 @@ sz=Path('$(COVER_JPG)').stat().st_size; \
 assert sz <= 10*1024, f'cover too big: {sz}'"
 
 PACK_HOMEBREW := $(GNW_CORE_SDK)/tools/pack_homebrew.py
+# The file manager has no Retro-Go save states (no load/save handlers): GWHB_FLAG_NO_SAVESTATES
+# (1 << 0, gwhb.h) tells the launcher to hide Resume / Save / Reload for it. Older firmware
+# ignores unknown flag bits.
+GWHB_FLAGS := 0x1
 # Each overlay out of the ELF (code + data; the packer drops the trailing BSS)
 $(BUILD_DIR)/ovl_%.bin: $(TARGET_ELF)
 	$(V)$(CP) -O binary --only-section=.fm_ovl_$* $< $@
@@ -78,6 +82,7 @@ pack: $(TARGET_BIN) $(addprefix $(BUILD_DIR)/ovl_,$(addsuffix .bin,$(FM_OVERLAYS
 		--nm $(if $(GCC_PATH),$(GCC_PATH)/)arm-none-eabi-nm \
 		--elf $(TARGET_ELF) --bin $(TARGET_BIN) \
 		--name "$(HB_NAME)" --version "$(CORE_VERSION)" \
+		--flags $(GWHB_FLAGS) \
 		$(if $(wildcard $(COVER_SRC)),--cover $(COVER_JPG)) \
 		--out "$(BUILD_DIR)/$(PACKED_BIN)"
 	$(V)python3 tools/append_overlays.py \
